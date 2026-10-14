@@ -8,7 +8,6 @@ import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
-import net.minecraftforge.client.event.sound.PlaySoundEvent;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -17,13 +16,9 @@ import java.util.Optional;
 /**
  * 音乐调度核心：决定“下一首播什么”，并把原版音乐与第三方音乐排成一条连续的播放队列。
  *
- * <p>实现方式完全基于公开 API：</p>
- * <ul>
- *     <li>用 {@link PlaySoundEvent} 判断原版音乐什么时候开始、并拦下不需要的原版音乐；</li>
- *     <li>用 {@code SoundManager#isActive} 判断当前播放的原版曲目是否结束；</li>
- *     <li>第三方音乐由 {@link CustomMusicPlayer} 直接输出到系统音频设备。</li>
- * </ul>
- * 因此不需要 Mixin，也不依赖任何被混淆的内部字段。
+ * <p>与 Forge 版的逻辑完全一致，差别只在拦截方式：这里不再用 {@code PlaySoundEvent}，
+ * 而是由 {@link com.arin.musiclooper.client.mixin.SoundManagerMixin} 挂在
+ * {@code SoundManager.play} 上，调用 {@link #shouldBlock(SoundInstance)} 询问要不要拦。</p>
  */
 public final class MusicController
 {
@@ -175,35 +170,35 @@ public final class MusicController
     }
 
     /**
-     * 拦下“不该出现”的原版音乐：
-     * 第三方音乐播放期间、或者开启了“第三方音乐足够多时禁用原版”时，
-     * 原版音乐管理器偷偷起的曲目会被直接丢掉，避免两首歌同时响。
+     * 这次 {@code SoundManager.play} 要不要拦下来？
+     *
+     * <p>由 {@code SoundManagerMixin} 在方法入口处调用。判定规则与 Forge 版一致：</p>
+     * <ul>
+     *     <li>不是音乐通道 → 放行（音效照常）；</li>
+     *     <li>主菜单 / 载入界面 → 放行（不插手）；</li>
+     *     <li>是我们自己挑的原版曲目 → 放行；</li>
+     *     <li>其余情况由 {@link #ownsRotation()} 决定。</li>
+     * </ul>
      */
-    public static void onPlaySound(PlaySoundEvent event)
+    public static boolean shouldBlock(SoundInstance sound)
     {
-        SoundInstance instance = event.getSound();
-        if (instance == null || instance.getSource() != SoundSource.MUSIC)
+        if (sound == null || sound.getSource() != SoundSource.MUSIC)
         {
-            return;
+            return false;
         }
 
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null)
         {
-            // 主菜单和载入界面不插手
-            return;
+            return false;
         }
 
-        if (instance == activeVanilla)
+        if (sound == activeVanilla)
         {
-            // 我们自己的原版曲目，放行
-            return;
+            return false;
         }
 
-        if (ownsRotation())
-        {
-            event.setSound(null);
-        }
+        return ownsRotation();
     }
 
     private static boolean ownsRotation()

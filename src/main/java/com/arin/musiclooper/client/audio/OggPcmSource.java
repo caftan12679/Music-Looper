@@ -1,6 +1,6 @@
 package com.arin.musiclooper.client.audio;
 
-import com.mojang.blaze3d.audio.OggAudioStream;
+import net.minecraft.client.sounds.JOrbisAudioStream;
 
 import javax.sound.sampled.AudioFormat;
 import java.io.BufferedInputStream;
@@ -11,11 +11,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 用 Minecraft 自带的 Vorbis 解码器（OggAudioStream）解码 .ogg 文件。
+ * 用 Minecraft 自带的 Vorbis 解码器（JOrbisAudioStream）解码 .ogg 文件。
  */
 public class OggPcmSource implements PcmSource
 {
-    private final OggAudioStream stream;
+    private final JOrbisAudioStream stream;
     private final InputStream source;
     private final AudioFormat format;
     private boolean endOfFile;
@@ -25,7 +25,7 @@ public class OggPcmSource implements PcmSource
         InputStream raw = Files.newInputStream(file);
         this.source = raw;
         BufferedInputStream buffered = new BufferedInputStream(raw, 1 << 16);
-        this.stream = new OggAudioStream(buffered);
+        this.stream = new JOrbisAudioStream(buffered);
         this.format = this.stream.getFormat();
     }
 

@@ -1,14 +1,12 @@
 package com.arin.musiclooper.client;
 
 import com.arin.musiclooper.MusicLooper;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
- * 客户端入口：注册事件监听、准备音乐文件夹。
+ * 客户端入口：把音乐调度和指令接进 Fabric 的回调。
  */
 public final class ClientBootstrap
 {
@@ -16,35 +14,20 @@ public final class ClientBootstrap
     {
     }
 
-    public static void init(IEventBus modEventBus)
+    public static void init()
     {
-        modEventBus.addListener(ClientBootstrap::onClientSetup);
-        MinecraftForge.EVENT_BUS.addListener(ClientBootstrap::onClientTick);
-        MinecraftForge.EVENT_BUS.addListener(MusicController::onPlaySound);
-        MinecraftForge.EVENT_BUS.addListener(ClientCommands::register);
+        // 每个客户端 tick 结束时驱动一次音乐调度
+        ClientTickEvents.END_CLIENT_TICK.register(ClientBootstrap::onClientTick);
+
+        // /musiclooper reload | status
+        ClientCommandRegistrationCallback.EVENT.register(ClientCommands::register);
     }
 
-    private static void onClientSetup(FMLClientSetupEvent event)
+    private static void onClientTick(Minecraft client)
     {
-        event.enqueueWork(() ->
-        {
-            CustomMusicLibrary.ensureFolder();
-            CustomMusicLibrary.refresh();
-            MusicLooper.LOGGER.info("Music Looper 已就绪。第三方音乐文件夹：{}", CustomMusicLibrary.MUSIC_DIR);
-            MusicLooper.LOGGER.info("当前识别到的音频格式：{}", com.arin.musiclooper.client.audio.AudioDecoders.describeSupportedFormats());
-        });
-    }
-
-    private static void onClientTick(TickEvent.ClientTickEvent event)
-    {
-        if (event.phase != TickEvent.Phase.END)
-        {
-            return;
-        }
-
         try
         {
-            MusicController.tick(Minecraft.getInstance());
+            MusicController.tick(client);
         }
         catch (Throwable throwable)
         {

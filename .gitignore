@@ -1,25 +1,28 @@
-# eclipse
-bin
-*.launch
-.settings
-.metadata
-.classpath
-.project
+# Fabric / Gradle
+.gradle/
+build/
+out/
 
-# idea
-out
+# IDE
+.idea/
+*.iml
 *.ipr
 *.iws
-*.iml
-.idea
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+run/
 
-# gradle
-build
-.gradle
+# 编译中间产物
+stubs-out*/
+mod-out*/
+pkg*/
+mod-classes.jar
+mod-obf.jar
+mod-intermediary.jar
 
-# other
-eclipse
-run
-
-# Files from Forge MDK
-forge*changelog.txt
+# OS
+.DS_Store
+Thumbs.db

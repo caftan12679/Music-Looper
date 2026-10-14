@@ -1,144 +1,125 @@
-# Music Looper
+# Music Looper（1.21.1 / Fabric 版）
 
-一个 Minecraft **1.20.1 / Forge** 的客户端模组：让原版音乐**连续循环播放**，
-并且可以把**你自己的音乐**放进 `config` 文件夹里一起随机播放。
+让 Minecraft 的音乐**永远不停**，还能放你自己的歌。
 
-作者：**hemjj,蓝色大肥鱼** · 许可证：**GPL-3.0**（见 [LICENSE](LICENSE)）
+> 适用版本：Minecraft **1.21.1** + Fabric Loader **0.19.5** · 纯客户端模组
+> 需要同时安装 **Fabric API**（1.21.1 对应版本）
+
+> 需要 **Java 21**（Minecraft 1.21 起的要求）
 
 ---
 
-## 功能
+## 这个模组做什么
 
-1. **原版音乐连续循环**
-   一首原版背景音乐播完，0.5 秒内就会自动接上下一首，不再有几分钟的静默空档。
-   曲目池与原版一致：会按你所在的生物群系 / 维度挑选音乐（主世界、下界、末地、创造模式、水下……）。
+**1. 原版音乐连续播放**
 
-2. **第三方音乐文件夹（自动创建）**
+原版背景音乐播完会静默几分钟才有下一首。装上这个模组后，一首接一首，
+几乎感觉不到间断。选曲逻辑和原版一样——会按你所在的生物群系、维度来挑音乐。
 
-   ```
-   .minecraft/config/musiclooper/music/
-   ```
+**2. 放你自己的音乐**
 
-   把音乐文件丢进去就行（支持子文件夹）。扫描是纯 I/O 操作，所以**不做定时轮询**：
-   进入世界时会自动扫一次，之后加/删了歌就敲一次指令
+游戏里会自动生成这个文件夹：
 
-   ```
-   /musiclooper reload
-   ```
+```
+.minecraft/config/musiclooper/music/
+```
 
-   想看当前认出几首，用 `/musiclooper status`。
+把你喜欢的歌丢进去就行（支持子文件夹），它们会被加进随机播放列表，
+和原版音乐一起交替播放。
 
-   | 格式 | 说明 |
-   | --- | --- |
-   | `.ogg` | 推荐，用 Minecraft 自带解码器，永远可用 |
-   | `.mp3` | 已内置解码器（mp3spi），可直接播放 |
-   | `.wav` / `.aiff` / `.au` | 用 Java 自带解码器 |
+支持的格式：
 
-   无法解码的文件不会被计入曲目数量，也会在日志里给出提示（最多列 20 个，避免刷屏）。
-
-3. **配置文件（自动生成）**
-
-   ```
-   .minecraft/config/musiclooper-client.toml
-   ```
-
-   ```toml
-   [vanilla]
-       # 原版音乐是否连续循环播放
-       loopVanillaMusic = true
-
-       # 第三方音乐足够多时，是否完全禁用原版音乐
-       disableVanillaMusicWhenEnoughCustom = false
-
-       # 上面那个选项的门槛（默认 5 首）
-       customMusicThreshold = 5
-
-   [custom]
-       # 是否播放第三方音乐
-       playCustomMusic = true
-
-       # 第三方音乐的音量倍率（0.0 ~ 1.0），实际音量 = 该值 × 游戏内“音乐”音量滑块
-       customMusicVolume = 1.0
-   ```
-
-### 播放规则
-
-| 情况 | 行为 |
+| 格式 | 说明 |
 | --- | --- |
-| `loopVanillaMusic = true`，没有第三方音乐 | 原版音乐一首接一首，永不冷场 |
-| `loopVanillaMusic = true`，有第三方音乐 | 原版曲目和第三方音乐**随机交替**，始终连续播放 |
-| `disableVanillaMusicWhenEnoughCustom = true` 且第三方音乐 ≥ `customMusicThreshold` | **完全只播第三方音乐**，原版音乐被拦下 |
-| `loopVanillaMusic = false` | 原版保持自己的节奏，第三方音乐只在原版留下的空档里播放 |
+| `.ogg` | 用 Minecraft 自带的解码器（1.21.1 里是 `JOrbisAudioStream`） |
+| `.mp3` | 已内置解码器，直接能放 |
+| `.wav` / `.aiff` / `.au` | 用 Java 自带解码器 |
 
-第三方音乐播放期间，原版音乐管理器自己挑起的曲目会被拦掉，不会出现两首歌同时响的情况。
+加完歌后，在游戏里敲一下指令让它重新扫描：
 
-### 指令
+```
+/musiclooper reload
+```
+
+**3. 让原版音乐闭嘴**
+
+如果你只想听自己的歌，打开配置文件：
+
+```
+.minecraft/config/musiclooper-client.toml
+```
+
+把这里改成 `true`：
+
+```toml
+[vanilla]
+    # 第三方音乐够多时，完全禁用原版音乐
+    disableVanillaMusicWhenEnoughCustom = true
+
+    # 达到几首才算"够多"（默认 5 首）
+    customMusicThreshold = 5
+```
+
+只要你的音乐数量达到门槛，原版音乐就会彻底停下。
+
+---
+
+## 指令
 
 | 指令 | 作用 |
 | --- | --- |
-| `/musiclooper reload` | 重新扫描音乐文件夹（加完歌敲一下就行） |
-| `/musiclooper status` | 显示认出几首、前 10 首文件名、当前配置 |
+| `/musiclooper reload` | 重新扫描音乐文件夹 |
+| `/musiclooper status` | 查看认出几首、当前配置 |
 
 ---
 
-## 编译
+## 安装
 
-```bash
-# 需要 JDK 17 或更高
-./gradlew build
-```
-
-产物：`build/libs/musiclooper-1.0.0.jar`，丢进 `.minecraft/mods/` 即可（需要 Forge 47.x）。
-
-> 在 Termux / Android 上编译时，`build.gradle` 特意没有使用 Gradle 的 java toolchain
-> （Android 的 bionic 环境下 Gradle 无法探测或下载 JDK 工具链），
-> 而是直接用当前 JDK 编译，并把字节码限制为 Java 17。
-
-### 在 Termux / Android 上手动编译（本仓库里那个 jar 的实际做法）
-
-ForgeGradle 的 MCP 流水线在 Android 的 bionic 环境里跑不通：
-`com.mojang:patchy` 解析失败、`mergeMappings/output.jar` 会被写坏、
-forgeflower 反编译要 `-Xmx4G` 而设备只给得了约 1.5G 堆。所以这个 jar 是手工编出来的：
-
-1. 用 **FART** 把官方 `client.jar` 反混淆成 mojmap 版本，作为编译类路径；
-2. 用 `javac`（JDK 17，`--release 17`）直接编译 `src/main/java`；
-3. 再用 **FART** 加一份自己合成的 `mojmap → SRG` 映射，把产物重混淆成运行时命名。
-
-第 3 步的映射来自 `mcp_config` 的 `config/joined.tsrg`（obf→srg 成员名）与 Mojang 的
-`client_mappings.txt`（mojmap→obf）合成，**类名保持 mojmap 不变，只重命名成员**——
-这正是 1.20.1 Forge 的运行时命名空间
-（线上崩溃日志里的 `net.minecraft.client.Minecraft.m_91374_ ~[client-…-srg.jar]` 就是它）。
-
-编译期 classpath = 反混淆后的客户端 + `forge-1.20.1-47.4.20-universal.jar` + Forge 运行时库
-（`fmlcore` / `fmlloader` / `javafmllanguage` / `eventbus` / `slf4j-api` / `night-config` 等）。
+1. 装好 **Fabric Loader 0.19.5**（Minecraft 1.21.1）
+2. 把 **Fabric API**（1.21.1 版）放进 `.minecraft/mods/`
+3. 把 `musiclooper-fabric-1.21.1-1.0.0.jar` 也放进 `.minecraft/mods/`
+4. 启动游戏（需要 Java 21）
 
 ---
 
-## 实现说明（给想改代码的人）
+## 与 1.20.1 版的差别
 
-* `MusicController` —— 音乐调度：决定下一首放原版还是第三方，并检测曲目何时结束。
-* `VanillaMusicProvider` —— 复刻原版的取曲逻辑（生物群系音乐 / 创造模式 / 水下）。
-* `CustomMusicPlayer` —— 第三方音乐：解码线程 + 渲染线程推流，音量跟随游戏“音乐”滑块。
-* `CustomMusicLibrary` —— `config/musiclooper/music` 的创建与扫描（指令触发，不轮询）。
-* `OpenAlSink` —— 把 PCM 交给游戏自己的 OpenAL 设备播放。
-* `audio/` —— 解码器：`.ogg` 用 Minecraft 的 `OggAudioStream`，`.mp3` 用内置 mp3spi，
-  其余用 JavaSound。
+从 1.20.1 的 Fabric 版移植过来，代码几乎原样复用。实际改动只有三处：
 
-全程只使用公开 API + Forge 事件（`PlaySoundEvent`、`TickEvent`、`SoundManager#isActive`、
-`RegisterClientCommandsEvent`），**没有 Mixin，也没有反射内部字段**，所以不会因为 MC 混淆名变化而失效。
+| 改动 | 原因 |
+| --- | --- |
+| `OggAudioStream` → `JOrbisAudioStream` | 1.21 重命名了这个类，包名也从 `com.mojang.blaze3d.audio` 移到 `net.minecraft.client.sounds` |
+| `--release 17` → `--release 21`，Mixin `JAVA_17` → `JAVA_21` | Minecraft 1.21 起要求 Java 21 |
+| `fabric.mod.json` 的版本约束 | `minecraft` 改成 `~1.21.1`，`java` 改成 `>=21` |
 
-### 两个坑（踩过，记一下）
+**为什么其他都不用改**：Fabric 的 intermediary 命名空间跨版本相当稳定。
+实测 20 个用到的类里，19 个的 intermediary 名字在两个版本里**指向同一个 MC 类**
+（例如 `class_310` 一直是 `Minecraft`），Mixin 挂的 `method_4873` / `method_4877`
+也完全一致。
 
-1. **为什么第三方音乐不走 `javax.sound.sampled` 播放**
-   手机启动器自带的 JRE 里没有 `libjsound.so`，JavaSound 只剩“读文件”的能力，
-   `AudioSystem.getSourceDataLine(...)` 必然失败。游戏自己的声音走 OpenAL，
-   所以这里复用同一个 OpenAL 上下文——而且所有 AL 调用都留在**渲染线程**：
-   Minecraft 初始化声音引擎时就是在渲染线程上 `alcMakeContextCurrent` 的。
+唯一的例外就是那个 Ogg 解码器——顺带一提，改完名字后它的
+**运行时名字没变**（都还是 `class_4228`），只有中间的 mojmap 名变了。
 
-2. **为什么 mp3 不通过 `AudioSystem` 打开**
-   JavaSound 的解码器是「`META-INF/services` + 线程上下文类加载器」注册的，
-   Forge 里模组 jar 不一定在那个类加载器上，实测会误报
-   `UnsupportedAudioFileException: File of unsupported format`。
-   现在直接 `new MpegAudioFileReader()`，完全绕开这张注册表。
-   也因此 jar 里的 mp3spi 去掉了 `META-INF/services` 文件：
-   `ServiceConfigurationError` 是 `Error` 不是 `Exception`，一旦被别的模组重复注册就会很麻烦。
+---
+
+## 从源码构建
+
+正常做法是用 Fabric Loom。但本仓库里的 jar **不是**用 Loom 构建的：
+构建它的设备是 Android/Termux，Loom 在那里跑不通。走的是 `build.sh` 里的手工流程：
+
+1. 用 JDK 21 编译（classpath = FART 反混淆后的 1.21.1 客户端 + Fabric Loader + Mixin）
+2. 用 FART **分两步**重映射：`mojmap → obf → intermediary`
+3. 打包（含 `fabric.mod.json`、`mixins.json`、内嵌 mp3 解码器）
+
+### 为什么必须分两步
+
+intermediary 会把某些方法登记在**接口**名下。例如 `blockPosition()` 记在
+`class_5568` 上，而 Entity 实现了它。一步式（直接合成的 `mojmap → intermediary`）
+不做继承传播，会生成 obf 名而不是 `method_XXXX`，运行时 `NoSuchMethodError`。
+FART 在第二步会自动做继承传播。
+
+---
+
+## 许可
+
+GPL-3.0 · 作者：**hemjj,蓝色大肥鱼**
