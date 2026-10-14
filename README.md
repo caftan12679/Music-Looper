@@ -1,144 +1,161 @@
-# Music Looper
+# Music Looper（NeoForge 1.21.1 版）
 
-一个 Minecraft **1.20.1 / Forge** 的客户端模组：让原版音乐**连续循环播放**，
-并且可以把**你自己的音乐**放进 `config` 文件夹里一起随机播放。
+让 Minecraft 的音乐**永远不停**，还能放你自己的歌。
 
-作者：**hemjj,蓝色大肥鱼** · 许可证：**GPL-3.0**（见 [LICENSE](LICENSE)）
+> 适用版本：Minecraft **1.21.1** + NeoForge **21.1.259** · 纯客户端模组
+> 服务器不用装。需要 **Java 21**
 
 ---
 
-## 功能
+## 这个模组做什么
 
-1. **原版音乐连续循环**
-   一首原版背景音乐播完，0.5 秒内就会自动接上下一首，不再有几分钟的静默空档。
-   曲目池与原版一致：会按你所在的生物群系 / 维度挑选音乐（主世界、下界、末地、创造模式、水下……）。
+**1. 原版音乐连续播放**
 
-2. **第三方音乐文件夹（自动创建）**
+原版背景音乐播完会静默几分钟才有下一首。装上这个模组后，一首接一首，
+几乎感觉不到间断。选曲逻辑和原版一样——会按你所在的生物群系、维度来挑音乐。
 
-   ```
-   .minecraft/config/musiclooper/music/
-   ```
+**2. 放你自己的音乐**
 
-   把音乐文件丢进去就行（支持子文件夹）。扫描是纯 I/O 操作，所以**不做定时轮询**：
-   进入世界时会自动扫一次，之后加/删了歌就敲一次指令
+游戏里会自动生成这个文件夹：
 
-   ```
-   /musiclooper reload
-   ```
+```
+.minecraft/config/musiclooper/music/
+```
 
-   想看当前认出几首，用 `/musiclooper status`。
+把你喜欢的歌丢进去就行（支持子文件夹），它们会被加进随机播放列表，
+和原版音乐一起交替播放。
 
-   | 格式 | 说明 |
-   | --- | --- |
-   | `.ogg` | 推荐，用 Minecraft 自带解码器，永远可用 |
-   | `.mp3` | 已内置解码器（mp3spi），可直接播放 |
-   | `.wav` / `.aiff` / `.au` | 用 Java 自带解码器 |
+支持的格式：
 
-   无法解码的文件不会被计入曲目数量，也会在日志里给出提示（最多列 20 个，避免刷屏）。
-
-3. **配置文件（自动生成）**
-
-   ```
-   .minecraft/config/musiclooper-client.toml
-   ```
-
-   ```toml
-   [vanilla]
-       # 原版音乐是否连续循环播放
-       loopVanillaMusic = true
-
-       # 第三方音乐足够多时，是否完全禁用原版音乐
-       disableVanillaMusicWhenEnoughCustom = false
-
-       # 上面那个选项的门槛（默认 5 首）
-       customMusicThreshold = 5
-
-   [custom]
-       # 是否播放第三方音乐
-       playCustomMusic = true
-
-       # 第三方音乐的音量倍率（0.0 ~ 1.0），实际音量 = 该值 × 游戏内“音乐”音量滑块
-       customMusicVolume = 1.0
-   ```
-
-### 播放规则
-
-| 情况 | 行为 |
+| 格式 | 说明 |
 | --- | --- |
-| `loopVanillaMusic = true`，没有第三方音乐 | 原版音乐一首接一首，永不冷场 |
-| `loopVanillaMusic = true`，有第三方音乐 | 原版曲目和第三方音乐**随机交替**，始终连续播放 |
-| `disableVanillaMusicWhenEnoughCustom = true` 且第三方音乐 ≥ `customMusicThreshold` | **完全只播第三方音乐**，原版音乐被拦下 |
-| `loopVanillaMusic = false` | 原版保持自己的节奏，第三方音乐只在原版留下的空档里播放 |
+| `.ogg` | 用 Minecraft 自带的解码器（1.21.1 里是 `JOrbisAudioStream`） |
+| `.mp3` | 已内置解码器，直接能放 |
+| `.wav` / `.aiff` / `.au` | 用 Java 自带解码器 |
 
-第三方音乐播放期间，原版音乐管理器自己挑起的曲目会被拦掉，不会出现两首歌同时响的情况。
+加完歌后，在游戏里敲一下指令让它重新扫描：
 
-### 指令
+```
+/musiclooper reload
+```
+
+**3. 让原版音乐闭嘴**
+
+如果你只想听自己的歌，打开配置文件：
+
+```
+.minecraft/config/musiclooper-client.toml
+```
+
+把这里改成 `true`：
+
+```toml
+[vanilla]
+    # 第三方音乐够多时，完全禁用原版音乐
+    disableVanillaMusicWhenEnoughCustom = true
+
+    # 达到几首才算"够多"（默认 5 首）
+    customMusicThreshold = 5
+```
+
+只要你的音乐数量达到门槛，原版音乐就会彻底停下。
+
+---
+
+## 指令
 
 | 指令 | 作用 |
 | --- | --- |
-| `/musiclooper reload` | 重新扫描音乐文件夹（加完歌敲一下就行） |
-| `/musiclooper status` | 显示认出几首、前 10 首文件名、当前配置 |
+| `/musiclooper reload` | 重新扫描音乐文件夹 |
+| `/musiclooper status` | 查看认出几首、当前配置 |
 
 ---
 
-## 编译
+## 安装
+
+1. 装好 **NeoForge 21.1.259**（Minecraft 1.21.1）
+2. 把 `musiclooper-neoforge-1.21.1-1.0.0.jar` 放进 `.minecraft/mods/`
+3. 启动游戏
+
+---
+
+## 与另外三个版本的差别
+
+这是第四个版本（Forge 1.20.1 / Fabric 1.20.1 / Fabric 1.21.1 / NeoForge 1.21.1）。
+NeoForge 这一版是**最省事的**：
+
+| | Forge 1.20.1 | Fabric | **NeoForge 1.21.1** |
+| --- | --- | --- | --- |
+| 运行时命名空间 | mojmap 类名 + SRG 成员名 | intermediary | **mojmap** |
+| 需要重映射 | 需要（FART） | 需要（两步 FART） | **不需要** |
+| 拦原版音乐 | `PlaySoundEvent` | 得用 Mixin | **`PlaySoundEvent`** |
+
+**① 不需要重映射**：NeoForge 1.21.1 运行时就是 Mojang 官方名。
+实测 NeoForge universal jar 里 **118 个类**引用 `net/minecraft/client/...`，
+**0 个**引用 SRG 名（`m_xxxxx_`）。所以编译产物即为成品。
+
+**② 不需要 Mixin**：NeoForge 提供了
+`net.neoforged.neoforge.client.event.sound.PlaySoundEvent`，
+和 Forge 版写法完全一致。（Fabric 版因为没有等价事件，才不得不用 Mixin 挂
+`SoundManager.play`。）
+
+代码复用情况：`audio/` 5 个文件 + `CustomMusicPlayer` + `VanillaMusicProvider`
+**原样搬过来零改动**；`MusicController` 的调度逻辑也一行没改。
+
+---
+
+## 一个踩到的坑（记一下）
+
+配置监听不能靠 `@EventBusSubscriber` 的默认值：
+
+```java
+// ✗ 错的：bus 默认是 GAME，而 ModConfigEvent 在 MOD 总线上
+@EventBusSubscriber(modid = MODID)
+```
+
+`ModConfigEvent` 实现了 `IModBusEvent`，是在 **MOD 总线**上触发的；
+而 `@EventBusSubscriber` 的 `bus` 属性默认值是 `GAME`
+（1.21.1 起还被标记为 `@Deprecated(forRemoval = true)`）。
+用默认值注册会导致**配置永远加载不上，所有配置项静默保持默认值**。
+
+正确做法是在模组构造器里显式注册：
+
+```java
+modEventBus.addListener(Config::onConfigLoad);
+```
+
+（`ClientTickEvent.Post` 和 `PlaySoundEvent` 都在 GAME 总线上，
+所以用 `NeoForge.EVENT_BUS.addListener(...)` 注册是对的。）
+
+---
+
+## 从源码构建
+
+正常做法是用 NeoGradle：
 
 ```bash
-# 需要 JDK 17 或更高
 ./gradlew build
 ```
 
-产物：`build/libs/musiclooper-1.0.0.jar`，丢进 `.minecraft/mods/` 即可（需要 Forge 47.x）。
+产物在 `build/libs/`。
 
-> 在 Termux / Android 上编译时，`build.gradle` 特意没有使用 Gradle 的 java toolchain
-> （Android 的 bionic 环境下 Gradle 无法探测或下载 JDK 工具链），
-> 而是直接用当前 JDK 编译，并把字节码限制为 Java 17。
+> ⚠️ 本仓库里的 jar **不是**用 Gradle 构建的。构建它的设备是 Android/Termux，
+> Gradle 在那里跑不通，所以走的是手工流程：
+> 用 JDK 21 编译（classpath = 1.21.1 的 mojmap 客户端 + NeoForge universal +
+> FML/bus 等依赖）→ 直接打包。**因为不需要重映射，这一步比 Forge/Fabric 版简单得多。**
 
-### 在 Termux / Android 上手动编译（本仓库里那个 jar 的实际做法）
+编译用到的 NeoForge 依赖：
 
-ForgeGradle 的 MCP 流水线在 Android 的 bionic 环境里跑不通：
-`com.mojang:patchy` 解析失败、`mergeMappings/output.jar` 会被写坏、
-forgeflower 反编译要 `-Xmx4G` 而设备只给得了约 1.5G 堆。所以这个 jar 是手工编出来的：
-
-1. 用 **FART** 把官方 `client.jar` 反混淆成 mojmap 版本，作为编译类路径；
-2. 用 `javac`（JDK 17，`--release 17`）直接编译 `src/main/java`；
-3. 再用 **FART** 加一份自己合成的 `mojmap → SRG` 映射，把产物重混淆成运行时命名。
-
-第 3 步的映射来自 `mcp_config` 的 `config/joined.tsrg`（obf→srg 成员名）与 Mojang 的
-`client_mappings.txt`（mojmap→obf）合成，**类名保持 mojmap 不变，只重命名成员**——
-这正是 1.20.1 Forge 的运行时命名空间
-（线上崩溃日志里的 `net.minecraft.client.Minecraft.m_91374_ ~[client-…-srg.jar]` 就是它）。
-
-编译期 classpath = 反混淆后的客户端 + `forge-1.20.1-47.4.20-universal.jar` + Forge 运行时库
-（`fmlcore` / `fmlloader` / `javafmllanguage` / `eventbus` / `slf4j-api` / `night-config` 等）。
+```
+net.neoforged:neoforge:21.1.259:universal
+net.neoforged.fancymodloader:loader:4.0.45     （FMLPaths / ModConfig / ModContainer / @Mod）
+net.neoforged:bus:8.0.5                        （IEventBus / @SubscribeEvent）
+net.neoforged:coremods:7.0.3
+net.neoforged:mergetool:2.0.0:api              （Dist 标记注解在这里）
+```
 
 ---
 
-## 实现说明（给想改代码的人）
+## 许可
 
-* `MusicController` —— 音乐调度：决定下一首放原版还是第三方，并检测曲目何时结束。
-* `VanillaMusicProvider` —— 复刻原版的取曲逻辑（生物群系音乐 / 创造模式 / 水下）。
-* `CustomMusicPlayer` —— 第三方音乐：解码线程 + 渲染线程推流，音量跟随游戏“音乐”滑块。
-* `CustomMusicLibrary` —— `config/musiclooper/music` 的创建与扫描（指令触发，不轮询）。
-* `OpenAlSink` —— 把 PCM 交给游戏自己的 OpenAL 设备播放。
-* `audio/` —— 解码器：`.ogg` 用 Minecraft 的 `OggAudioStream`，`.mp3` 用内置 mp3spi，
-  其余用 JavaSound。
-
-全程只使用公开 API + Forge 事件（`PlaySoundEvent`、`TickEvent`、`SoundManager#isActive`、
-`RegisterClientCommandsEvent`），**没有 Mixin，也没有反射内部字段**，所以不会因为 MC 混淆名变化而失效。
-
-### 两个坑（踩过，记一下）
-
-1. **为什么第三方音乐不走 `javax.sound.sampled` 播放**
-   手机启动器自带的 JRE 里没有 `libjsound.so`，JavaSound 只剩“读文件”的能力，
-   `AudioSystem.getSourceDataLine(...)` 必然失败。游戏自己的声音走 OpenAL，
-   所以这里复用同一个 OpenAL 上下文——而且所有 AL 调用都留在**渲染线程**：
-   Minecraft 初始化声音引擎时就是在渲染线程上 `alcMakeContextCurrent` 的。
-
-2. **为什么 mp3 不通过 `AudioSystem` 打开**
-   JavaSound 的解码器是「`META-INF/services` + 线程上下文类加载器」注册的，
-   Forge 里模组 jar 不一定在那个类加载器上，实测会误报
-   `UnsupportedAudioFileException: File of unsupported format`。
-   现在直接 `new MpegAudioFileReader()`，完全绕开这张注册表。
-   也因此 jar 里的 mp3spi 去掉了 `META-INF/services` 文件：
-   `ServiceConfigurationError` 是 `Error` 不是 `Exception`，一旦被别的模组重复注册就会很麻烦。
+GPL-3.0 · 作者：**hemjj,蓝色大肥鱼**

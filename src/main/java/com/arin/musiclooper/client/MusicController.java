@@ -8,7 +8,7 @@ import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
-import net.minecraftforge.client.event.sound.PlaySoundEvent;
+import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -17,11 +17,11 @@ import java.util.Optional;
 /**
  * 音乐调度核心：决定“下一首播什么”，并把原版音乐与第三方音乐排成一条连续的播放队列。
  *
- * <p>实现方式完全基于公开 API：</p>
+ * <p>实现方式完全基于公开 API + NeoForge 事件：</p>
  * <ul>
  *     <li>用 {@link PlaySoundEvent} 判断原版音乐什么时候开始、并拦下不需要的原版音乐；</li>
  *     <li>用 {@code SoundManager#isActive} 判断当前播放的原版曲目是否结束；</li>
- *     <li>第三方音乐由 {@link CustomMusicPlayer} 直接输出到系统音频设备。</li>
+ *     <li>第三方音乐由 {@link CustomMusicPlayer} 直接输出到 OpenAL 设备。</li>
  * </ul>
  * 因此不需要 Mixin，也不依赖任何被混淆的内部字段。
  */

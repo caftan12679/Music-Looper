@@ -2,7 +2,7 @@ package com.arin.musiclooper.client;
 
 import com.arin.musiclooper.MusicLooper;
 import com.arin.musiclooper.client.audio.AudioDecoders;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +22,8 @@ import java.util.stream.Stream;
 public final class CustomMusicLibrary
 {
     /** config/musiclooper/music */
-    public static final Path MUSIC_DIR = FMLPaths.CONFIGDIR.get().resolve(MusicLooper.MODID).resolve("music");
+    public static final Path MUSIC_DIR = FMLPaths.CONFIGDIR.get()
+            .resolve(MusicLooper.MODID).resolve("music");
 
     private static final String README_NAME = "说明.txt";
 

@@ -2,11 +2,11 @@ package com.arin.musiclooper.client;
 
 import com.arin.musiclooper.Config;
 import com.arin.musiclooper.MusicLooper;
+import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -28,7 +28,7 @@ public final class ClientCommands
     {
     }
 
-    public static void register(RegisterClientCommandsEvent event)
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher)
     {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(MusicLooper.MODID)
                 .then(Commands.literal("reload")
@@ -36,7 +36,7 @@ public final class ClientCommands
                 .then(Commands.literal("status")
                         .executes(context -> status(context.getSource())));
 
-        event.getDispatcher().register(root);
+        dispatcher.register(root);
     }
 
     private static int reload(CommandSourceStack source)

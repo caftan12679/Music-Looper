@@ -1,23 +1,29 @@
 package com.arin.musiclooper;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
  * config/musiclooper-client.toml 里的配置项。
+ *
+ * <p>NeoForge 自带配置系统（{@code ModConfigSpec}），API 与 Forge 的
+ * {@code ForgeConfigSpec} 基本一致，所以这里可以直接沿用 Forge 版的写法。</p>
+ *
+ * <p><b>注意事件总线：</b>{@code ModConfigEvent} 实现了 {@code IModBusEvent}，
+ * 是在 <b>MOD 总线</b>上触发的。所以不能靠 {@code @EventBusSubscriber} 的默认值
+ * （它的 {@code bus} 默认是 {@code GAME}，1.21.1 起还被标记为废弃），
+ * 而是由 {@link MusicLooper} 在构造器里显式注册到 mod 事件总线。</p>
  */
-@Mod.EventBusSubscriber(modid = MusicLooper.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class Config
 {
-    public static final ForgeConfigSpec SPEC;
+    public static final ModConfigSpec SPEC;
 
-    private static final ForgeConfigSpec.BooleanValue LOOP_VANILLA_MUSIC;
-    private static final ForgeConfigSpec.BooleanValue PLAY_CUSTOM_MUSIC;
-    private static final ForgeConfigSpec.DoubleValue CUSTOM_MUSIC_VOLUME;
-    private static final ForgeConfigSpec.BooleanValue DISABLE_VANILLA_WHEN_ENOUGH_CUSTOM;
-    private static final ForgeConfigSpec.IntValue CUSTOM_MUSIC_THRESHOLD;
+    private static final ModConfigSpec.BooleanValue LOOP_VANILLA_MUSIC;
+    private static final ModConfigSpec.BooleanValue PLAY_CUSTOM_MUSIC;
+    private static final ModConfigSpec.DoubleValue CUSTOM_MUSIC_VOLUME;
+    private static final ModConfigSpec.BooleanValue DISABLE_VANILLA_WHEN_ENOUGH_CUSTOM;
+    private static final ModConfigSpec.IntValue CUSTOM_MUSIC_THRESHOLD;
 
     /** 原版音乐是否连续播放（一首结束立刻接下一首，不再有几分钟的空档） */
     public static boolean loopVanillaMusic = true;
@@ -32,7 +38,7 @@ public final class Config
 
     static
     {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
         builder.comment("原版音乐（Minecraft 自带背景音乐）相关设置").push("vanilla");
         LOOP_VANILLA_MUSIC = builder
@@ -67,8 +73,13 @@ public final class Config
         SPEC = builder.build();
     }
 
+    private Config()
+    {
+    }
+
+    /** 由 {@link MusicLooper} 注册到 mod 事件总线；ModConfigEvent 走的是 MOD 总线 */
     @SubscribeEvent
-    static void onConfigLoad(ModConfigEvent event)
+    public static void onConfigLoad(ModConfigEvent event)
     {
         // 只处理本模组自己的配置
         if (event.getConfig().getSpec() != SPEC)
