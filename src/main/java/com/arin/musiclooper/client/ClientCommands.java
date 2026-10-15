@@ -3,18 +3,28 @@ package com.arin.musiclooper.client;
 import com.arin.musiclooper.Config;
 import com.arin.musiclooper.MusicLooper;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.biome.Biome;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 客户端指令。
  *
- * <p>扫描第三方音乐文件夹是纯 I/O 操作，放在渲染线程上每秒跑一次并不划算，
+ * <p>扫描第三方音乐文件夹是纯 I/O 操作，放在渲染线程上定时跑并不划算，
  * 所以改成<b>指令触发</b>：加完歌用 {@code /musiclooper reload} 重新扫一遍就行。</p>
  *
  * <ul>
@@ -28,15 +38,91 @@ public final class ClientCommands
     {
     }
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher)
+    public static void register(RegisterClientCommandsEvent event)
     {
+        CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(MusicLooper.MODID)
                 .then(Commands.literal("reload")
-                        .executes(context -> reload(context.getSource())))
+                        .executes(command -> reload(command.getSource())))
                 .then(Commands.literal("status")
-                        .executes(context -> status(context.getSource())));
+                        .executes(command -> status(command.getSource())))
+                // /musiclooper play <文件名>  —— 立刻切到指定音乐
+                .then(Commands.literal("play")
+                        .then(Commands.argument("fileName", StringArgumentType.greedyString())
+                                .suggests(ClientCommands::suggestTracks)
+                                .executes(command -> play(command.getSource(),
+                                        StringArgumentType.getString(command, "fileName")))))
+                // /musiclooper biome —— 看看当前群系命中了什么
+                .then(Commands.literal("biome")
+                        .executes(command -> biome(command.getSource())));
 
         dispatcher.register(root);
+    }
+
+    /** 给 play 指令做文件名联想 */
+    private static CompletableFuture<Suggestions> suggestTracks(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder)
+    {
+        String prefix = builder.getRemainingLowerCase();
+        for (Path track : CustomMusicLibrary.playableTracks())
+        {
+            String name = track.getFileName().toString();
+            if (prefix.isEmpty() || name.toLowerCase(Locale.ROOT).startsWith(prefix))
+            {
+                builder.suggest(name);
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    /** 立刻停掉当前音乐，改播指定文件 */
+    private static int play(CommandSourceStack source, String fileName)
+    {
+        Minecraft minecraft = Minecraft.getInstance();
+        Path played = MusicController.playNow(minecraft, fileName);
+
+        if (played == null)
+        {
+            source.sendFailure(Component.literal("找不到音乐：" + fileName
+                    + "（可用 /musiclooper status 查看已有曲目）"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("正在播放：" + played.getFileName()), false);
+        return 1;
+    }
+
+    /** 当前生物群系命中了哪条规则 */
+    private static int biome(CommandSourceStack source)
+    {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null)
+        {
+            source.sendFailure(Component.literal("要先进入世界才能查看群系信息"));
+            return 0;
+        }
+
+        Holder<Biome> holder = minecraft.level.getBiome(minecraft.player.blockPosition());
+        String id = holder.unwrapKey().map(key -> key.location().toString()).orElse("(未知)");
+
+        source.sendSuccess(() -> Component.literal("当前生物群系：" + id), false);
+        source.sendSuccess(() -> Component.literal("群系音乐功能："
+                + (Config.biomeMusicEnabled ? "已启用（模式 " + Config.biomeMusicMode + "）" : "未启用")), false);
+
+        List<Path> all = CustomMusicLibrary.playableTracks();
+        List<Path> hit = BiomeMusicRules.pick(holder, all);
+        if (hit == null)
+        {
+            source.sendSuccess(() -> Component.literal("该群系没有命中规则 → 从全部 " + all.size() + " 首里随机"), false);
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("命中 " + hit.size() + " 首："), false);
+        for (Path track : hit)
+        {
+            source.sendSuccess(() -> Component.literal("  · " + track.getFileName()), false);
+        }
+        return hit.size();
     }
 
     private static int reload(CommandSourceStack source)

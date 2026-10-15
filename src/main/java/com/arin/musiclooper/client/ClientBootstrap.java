@@ -45,6 +45,6 @@ public final class ClientBootstrap
 
     private static void onRegisterClientCommands(RegisterClientCommandsEvent event)
     {
-        ClientCommands.register(event.getDispatcher());
+        ClientCommands.register(event);
     }
 }

@@ -5,9 +5,11 @@ import com.arin.musiclooper.MusicLooper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.core.Holder;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.biome.Biome;
 import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 
 import java.nio.file.Path;
@@ -17,13 +19,8 @@ import java.util.Optional;
 /**
  * 音乐调度核心：决定“下一首播什么”，并把原版音乐与第三方音乐排成一条连续的播放队列。
  *
- * <p>实现方式完全基于公开 API + NeoForge 事件：</p>
- * <ul>
- *     <li>用 {@link PlaySoundEvent} 判断原版音乐什么时候开始、并拦下不需要的原版音乐；</li>
- *     <li>用 {@code SoundManager#isActive} 判断当前播放的原版曲目是否结束；</li>
- *     <li>第三方音乐由 {@link CustomMusicPlayer} 直接输出到 OpenAL 设备。</li>
- * </ul>
- * 因此不需要 Mixin，也不依赖任何被混淆的内部字段。
+ * <p>实现方式完全基于公开 API + NeoForge 事件：用 {@link PlaySoundEvent}
+ * 拦下不需要的原版音乐，用 {@code SoundManager#isActive} 判断曲目是否结束。</p>
  */
 public final class MusicController
 {
@@ -107,10 +104,15 @@ public final class MusicController
 
     private static void startNext(Minecraft minecraft, float musicVolume)
     {
-        List<Path> tracks = Config.playCustomMusic ? CustomMusicLibrary.playableTracks() : List.of();
+        List<Path> allTracks = Config.playCustomMusic ? CustomMusicLibrary.playableTracks() : List.of();
+        boolean canPlayCustom = !allTracks.isEmpty() && musicVolume > 0.0F;
+
+        // 先看当前生物群系有没有专门配置的曲目。命中时用命中结果替代全部曲目。
+        List<Path> biomeTracks = pickBiomeTracks(minecraft, allTracks);
+        List<Path> tracks = biomeTracks != null ? biomeTracks : allTracks;
+
         boolean enoughCustom = Config.disableVanillaMusicWhenEnoughCustom
-                && tracks.size() >= Config.customMusicThreshold;
-        boolean canPlayCustom = !tracks.isEmpty() && musicVolume > 0.0F;
+                && allTracks.size() >= Config.customMusicThreshold;
 
         if (enoughCustom)
         {
@@ -132,6 +134,13 @@ public final class MusicController
             return;
         }
 
+        // 命中的群系如果设成 ONLY_CUSTOM，就让本模组接管，原版音乐不再插进来
+        if (biomeTracks != null && BiomeMusicRules.blocksVanilla(biomeOf(minecraft), allTracks))
+        {
+            startCustom(biomeTracks);
+            return;
+        }
+
         // 原版循环 + 有第三方音乐：随机二选一，两种音乐交替出现
         if (canPlayCustom && RANDOM.nextBoolean())
         {
@@ -141,12 +150,112 @@ public final class MusicController
         startVanilla(minecraft);
     }
 
+    /** 当前生物群系（玩家为空时也返回 null） */
+    private static Holder<Biome> biomeOf(Minecraft minecraft)
+    {
+        if (minecraft.level == null || minecraft.player == null)
+        {
+            return null;
+        }
+        return minecraft.level.getBiome(minecraft.player.blockPosition());
+    }
+
+    /** 命中的群系曲目；未命中返回 null */
+    private static List<Path> pickBiomeTracks(Minecraft minecraft, List<Path> available)
+    {
+        if (!BiomeMusicRules.isEnabled())
+        {
+            return null;
+        }
+        return BiomeMusicRules.pick(biomeOf(minecraft), available);
+    }
+
     private static void startCustom(List<Path> tracks)
     {
         Path track = tracks.get(RANDOM.nextInt(tracks.size()));
         activeIsCustom = true;
         PLAYER.play(track);
         MusicLooper.LOGGER.debug("开始播放第三方音乐：{}", track.getFileName());
+    }
+
+    /**
+     * 立刻停掉当前音乐（原版和第三方都停），改播指定文件。
+     *
+     * <p>供 {@code /musiclooper play <文件名>} 使用。暂停菜单里也能用 ——
+     * 反正我们本来就只在 tick 里驱动播放器，不依赖原版音乐的节奏。</p>
+     *
+     * @return 实际播放的文件；文件找不到或不可播放时返回 {@code null}
+     */
+    public static Path playNow(Minecraft minecraft, String fileName)
+    {
+        Path target = findTrack(fileName);
+        if (target == null)
+        {
+            return null;
+        }
+
+        // 停掉我们自己的原版曲目和第三方音乐
+        stopCurrent(minecraft);
+
+        activeIsCustom = true;
+        PLAYER.play(target);
+        MusicLooper.LOGGER.info("手动切歌：{}", target.getFileName());
+        return target;
+    }
+
+    /** 按文件名（或文件名的一部分）在当前可用曲目里找一首 */
+    public static Path findTrack(String query)
+    {
+        if (query == null || query.isBlank())
+        {
+            return null;
+        }
+
+        List<Path> tracks = CustomMusicLibrary.playableTracks();
+        String wanted = query.trim();
+
+        // 先精确匹配文件名（忽略大小写），再退化成「包含」匹配
+        for (Path path : tracks)
+        {
+            if (path.getFileName().toString().equalsIgnoreCase(wanted))
+            {
+                return path;
+            }
+        }
+
+        String lower = wanted.toLowerCase(java.util.Locale.ROOT);
+        for (Path path : tracks)
+        {
+            if (path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).contains(lower))
+            {
+                return path;
+            }
+        }
+        return null;
+    }
+
+    /** 停掉当前正在播的音乐（原版 + 第三方） */
+    private static void stopCurrent(Minecraft minecraft)
+    {
+        if (activeVanilla != null && minecraft != null)
+        {
+            try
+            {
+                minecraft.getSoundManager().stop(activeVanilla);
+            }
+            catch (Throwable ignored)
+            {
+                // 音乐引擎可能还没就绪，忽略
+            }
+        }
+        activeVanilla = null;
+
+        if (activeIsCustom || PLAYER.isBusy())
+        {
+            PLAYER.stop();
+        }
+        activeIsCustom = false;
+        idleTicks = 0;
     }
 
     private static void startVanilla(Minecraft minecraft)
@@ -175,14 +284,20 @@ public final class MusicController
     }
 
     /**
-     * 拦下“不该出现”的原版音乐：
-     * 第三方音乐播放期间、或者开启了“第三方音乐足够多时禁用原版”时，
-     * 原版音乐管理器偷偷起的曲目会被直接丢掉，避免两首歌同时响。
+     * 这次 {@code SoundManager.play} 要不要拦下来？
+     *
+     * <p>由 {@code SoundManagerMixin} 在方法入口处调用。判定规则与 Forge 版一致：</p>
+     * <ul>
+     *     <li>不是音乐通道 → 放行（音效照常）；</li>
+     *     <li>主菜单 / 载入界面 → 放行（不插手）；</li>
+     *     <li>是我们自己挑的原版曲目 → 放行；</li>
+     *     <li>其余情况由 {@link #ownsRotation()} 决定。</li>
+     * </ul>
      */
     public static void onPlaySound(PlaySoundEvent event)
     {
-        SoundInstance instance = event.getSound();
-        if (instance == null || instance.getSource() != SoundSource.MUSIC)
+        SoundInstance sound = event.getSound();
+        if (sound == null || sound.getSource() != SoundSource.MUSIC)
         {
             return;
         }
@@ -190,13 +305,11 @@ public final class MusicController
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null)
         {
-            // 主菜单和载入界面不插手
             return;
         }
 
-        if (instance == activeVanilla)
+        if (sound == activeVanilla)
         {
-            // 我们自己的原版曲目，放行
             return;
         }
 

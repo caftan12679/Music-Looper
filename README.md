@@ -39,7 +39,11 @@
 /musiclooper reload
 ```
 
-**3. 让原版音乐闭嘴**
+**3. 按生物群系播放指定音乐**
+
+想让某个群系固定放某几首歌？可以在配置里按群系（或群系标签）指定曲目。
+
+**4. 让原版音乐闭嘴**
 
 如果你只想听自己的歌，打开配置文件：
 
@@ -66,96 +70,102 @@
 
 | 指令 | 作用 |
 | --- | --- |
+| `/musiclooper play <文件名>` | **立刻**停掉当前音乐，改播指定的这首 |
+| `/musiclooper biome` | 查看当前群系 ID、命中了哪条规则 |
 | `/musiclooper reload` | 重新扫描音乐文件夹 |
 | `/musiclooper status` | 查看认出几首、当前配置 |
 
 ---
 
-## 安装
-
-1. 装好 **NeoForge 21.1.259**（Minecraft 1.21.1）
-2. 把 `musiclooper-neoforge-1.21.1-1.0.0.jar` 放进 `.minecraft/mods/`
-3. 启动游戏
-
 ---
 
-## 与另外三个版本的差别
+## 按生物群系播放指定音乐
 
-这是第四个版本（Forge 1.20.1 / Fabric 1.20.1 / Fabric 1.21.1 / NeoForge 1.21.1）。
-NeoForge 这一版是**最省事的**：
+想让某个群系固定放某几首歌？用这个功能。
 
-| | Forge 1.20.1 | Fabric | **NeoForge 1.21.1** |
-| --- | --- | --- | --- |
-| 运行时命名空间 | mojmap 类名 + SRG 成员名 | intermediary | **mojmap** |
-| 需要重映射 | 需要（FART） | 需要（两步 FART） | **不需要** |
-| 拦原版音乐 | `PlaySoundEvent` | 得用 Mixin | **`PlaySoundEvent`** |
+### 快速上手
 
-**① 不需要重映射**：NeoForge 1.21.1 运行时就是 Mojang 官方名。
-实测 NeoForge universal jar 里 **118 个类**引用 `net/minecraft/client/...`，
-**0 个**引用 SRG 名（`m_xxxxx_`）。所以编译产物即为成品。
+1. 把音乐放进 `config/musiclooper/music/`
+2. 打开 `config/musiclooper-client.toml`
+3. 找到 `[biomeMusic]` 段，把 `enabled` 改成 `true`
+4. 在 `rules` 里写规则
+5. 进游戏敲 `/musiclooper reload` 让它重新扫描
 
-**② 不需要 Mixin**：NeoForge 提供了
-`net.neoforged.neoforge.client.event.sound.PlaySoundEvent`，
-和 Forge 版写法完全一致。（Fabric 版因为没有等价事件，才不得不用 Mixin 挂
-`SoundManager.play`。）
+### 规则怎么写
 
-代码复用情况：`audio/` 5 个文件 + `CustomMusicPlayer` + `VanillaMusicProvider`
-**原样搬过来零改动**；`MusicController` 的调度逻辑也一行没改。
+每条规则的格式是 **`群系ID=文件名1,文件名2`**：
 
----
+```toml
+[biomeMusic]
+    enabled = true
 
-## 一个踩到的坑（记一下）
+    rules = [
+        # ① 具体群系：只在平原放这两首
+        "minecraft:plains=calm.mp3,morning.mp3",
 
-配置监听不能靠 `@EventBusSubscriber` 的默认值：
+        # ② 群系标签：所有森林类群系共用（注意前面有 #）
+        "#minecraft:is_forest=forest_theme.mp3",
 
-```java
-// ✗ 错的：bus 默认是 GAME，而 ModConfigEvent 在 MOD 总线上
-@EventBusSubscriber(modid = MODID)
+        # ③ 兜底：前面都没命中时用它
+        "*=fallback.mp3",
+    ]
+
+    # ONLY_CUSTOM  该群系只放你配的音乐，原版音乐不出声（默认）
+    # MIX          你配的音乐和原版音乐交替播放
+    mode = "ONLY_CUSTOM"
 ```
 
-`ModConfigEvent` 实现了 `IModBusEvent`，是在 **MOD 总线**上触发的；
-而 `@EventBusSubscriber` 的 `bus` 属性默认值是 `GAME`
-（1.21.1 起还被标记为 `@Deprecated(forRemoval = true)`）。
-用默认值注册会导致**配置永远加载不上，所有配置项静默保持默认值**。
+**匹配顺序**：具体群系 → 标签 → 兜底。
 
-正确做法是在模组构造器里显式注册：
+### 群系 ID 怎么写
 
-```java
-modEventBus.addListener(Config::onConfigLoad);
+格式是 `命名空间:群系名`，省略命名空间时默认 `minecraft`：
+
+```toml
+"minecraft:plains=..."      # 完整写法
+"plains=..."                # 等价（默认 minecraft）
+"biomesoplenty:lavender_field=..."   # 其它模组的群系也行
 ```
 
-（`ClientTickEvent.Post` 和 `PlaySoundEvent` 都在 GAME 总线上，
-所以用 `NeoForge.EVENT_BUS.addListener(...)` 注册是对的。）
-
----
-
-## 从源码构建
-
-正常做法是用 NeoGradle：
-
-```bash
-./gradlew build
-```
-
-产物在 `build/libs/`。
-
-> ⚠️ 本仓库里的 jar **不是**用 Gradle 构建的。构建它的设备是 Android/Termux，
-> Gradle 在那里跑不通，所以走的是手工流程：
-> 用 JDK 21 编译（classpath = 1.21.1 的 mojmap 客户端 + NeoForge universal +
-> FML/bus 等依赖）→ 直接打包。**因为不需要重映射，这一步比 Forge/Fabric 版简单得多。**
-
-编译用到的 NeoForge 依赖：
+**不知道群系 ID 是什么？** 站到那个群系里敲：
 
 ```
-net.neoforged:neoforge:21.1.259:universal
-net.neoforged.fancymodloader:loader:4.0.45     （FMLPaths / ModConfig / ModContainer / @Mod）
-net.neoforged:bus:8.0.5                        （IEventBus / @SubscribeEvent）
-net.neoforged:coremods:7.0.3
-net.neoforged:mergetool:2.0.0:api              （Dist 标记注解在这里）
+/musiclooper biome
 ```
 
----
+它会告诉你当前群系 ID、有没有命中规则、命中了哪几首。
 
-## 许可
+### 用标签一次覆盖一大类群系
 
-GPL-3.0 · 作者：**hemjj,蓝色大肥鱼**
+一个个列群系太麻烦时用标签，前面加 `#`：
+
+```toml
+"#minecraft:is_forest=forest.mp3"     # 所有森林
+"#minecraft:is_taiga=taiga.mp3"       # 所有针叶林
+"#minecraft:is_jungle=jungle.mp3"     # 所有丛林
+"#minecraft:is_ocean=ocean.mp3"       # 所有海洋
+"#minecraft:is_mountain=mountain.mp3" # 所有山地
+"#minecraft:is_nether=nether.mp3"     # 下界全部
+```
+
+常用的还有 `is_beach`、`is_river`、`is_badlands`、`is_hill`、`is_savanna`、`is_overworld`。
+
+> 标签是 Minecraft 自带的分类，好处是**游戏以后加了新群系也会自动覆盖**。
+
+### 文件名怎么写
+
+写文件名就行，和 `config/musiclooper/music/` 里的对应（**忽略大小写**）：
+
+```toml
+"minecraft:plains=Calm.MP3"     # 能匹配到 calm.mp3
+```
+
+放在子文件夹里的话，写文件名即可（不需要写路径）。
+
+### 两个细节
+
+**① 文件找不到怎么办？**
+如果某条规则里的文件全部不存在或无法解码，那个群系会**回退到全部曲目随机**，不会出现"进这个群系就彻底没声音"的情况。日志里会记录下来。
+
+**② 和其它设置冲突时谁优先？**
+群系规则**优先**。也就是说，即使你开了「第三方音乐够多时禁用原版音乐」，只要当前群系命中了一条 `ONLY_CUSTOM` 规则，就按群系规则走。
