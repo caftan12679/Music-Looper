@@ -39,7 +39,11 @@
 /musiclooper reload
 ```
 
-**3. 让原版音乐闭嘴**
+**3. 按生物群系播放指定音乐**
+
+想让某个群系固定放某几首歌？可以在配置里按群系（或群系标签）指定曲目。
+
+**4. 让原版音乐闭嘴**
 
 如果你只想听自己的歌，打开配置文件：
 
@@ -66,91 +70,102 @@
 
 | 指令 | 作用 |
 | --- | --- |
+| `/musiclooper play <文件名>` | **立刻**停掉当前音乐，改播指定的这首 |
+| `/musiclooper biome` | 查看当前群系 ID、命中了哪条规则 |
 | `/musiclooper reload` | 重新扫描音乐文件夹 |
 | `/musiclooper status` | 查看认出几首、当前配置 |
 
 ---
 
-## 安装
-
-1. 装好 **Fabric Loader 0.19.5**（Minecraft 1.20.1）
-2. 把 **Fabric API** 放进 `.minecraft/mods/`
-3. 把 `musiclooper-fabric-1.0.0.jar` 也放进 `.minecraft/mods/`
-4. 启动游戏
-
 ---
 
-## 从源码构建
+## 按生物群系播放指定音乐
 
-正常做法是用 Fabric Loom：
+想让某个群系固定放某几首歌？用这个功能。
 
-```bash
-./gradlew build
+### 快速上手
+
+1. 把音乐放进 `config/musiclooper/music/`
+2. 打开 `config/musiclooper-client.toml`
+3. 找到 `[biomeMusic]` 段，把 `enabled` 改成 `true`
+4. 在 `rules` 里写规则
+5. 进游戏敲 `/musiclooper reload` 让它重新扫描
+
+### 规则怎么写
+
+每条规则的格式是 **`群系ID=文件名1,文件名2`**：
+
+```toml
+[biomeMusic]
+    enabled = true
+
+    rules = [
+        # ① 具体群系：只在平原放这两首
+        "minecraft:plains=calm.mp3,morning.mp3",
+
+        # ② 群系标签：所有森林类群系共用（注意前面有 #）
+        "#minecraft:is_forest=forest_theme.mp3",
+
+        # ③ 兜底：前面都没命中时用它
+        "*=fallback.mp3",
+    ]
+
+    # ONLY_CUSTOM  该群系只放你配的音乐，原版音乐不出声（默认）
+    # MIX          你配的音乐和原版音乐交替播放
+    mode = "ONLY_CUSTOM"
 ```
 
-> ⚠️ 本仓库里的 jar **不是**用 Loom 构建的。构建它的设备是 Android/Termux，
-> Loom 的流水线在那里跑不通，所以走的是 `build.sh` 里的手工流程：
-> 用 JDK 17 编译 → 用 FART 分两步重映射成 intermediary → 打包。
-> 见下面的「实现说明」。
+**匹配顺序**：具体群系 → 标签 → 兜底。
 
----
+### 群系 ID 怎么写
 
-## 实现说明
+格式是 `命名空间:群系名`，省略命名空间时默认 `minecraft`：
 
-### 目录结构
-
-```
-src/main/java/com/arin/musiclooper/
-├── MusicLooper.java            客户端入口（ClientModInitializer）
-├── Config.java                 自己读写 TOML 配置
-├── client/
-│   ├── ClientBootstrap.java    接 Fabric 的 tick / 指令回调
-│   ├── ClientCommands.java     /musiclooper reload | status
-│   ├── CustomMusicLibrary.java 音乐文件夹的创建与扫描
-│   ├── CustomMusicPlayer.java  解码线程 + 渲染线程推流
-│   ├── MusicController.java    音乐调度核心
-│   ├── VanillaMusicProvider.java 复刻原版取曲逻辑
-│   ├── mixin/
-│   │   └── SoundManagerMixin.java  拦下不该播的原版音乐
-│   └── audio/                  解码器与 OpenAL 输出
-└── ...
-stubs/                          Fabric API 的编译桩（不进 jar）
+```toml
+"minecraft:plains=..."      # 完整写法
+"plains=..."                # 等价（默认 minecraft）
+"biomesoplenty:lavender_field=..."   # 其它模组的群系也行
 ```
 
-### 三个关键点
+**不知道群系 ID 是什么？** 站到那个群系里敲：
 
-**1. 为什么用 Mixin**
+```
+/musiclooper biome
+```
 
-Forge 那边有 `PlaySoundEvent` 可以直接取消一首音乐的播放，Fabric 没有等价事件。
-所以挂在 `SoundManager.play` 的入口上，判定为不该播就直接 cancel。
+它会告诉你当前群系 ID、有没有命中规则、命中了哪几首。
 
-注意 `SoundManagerMixin` 里的注解字符串写的是 **intermediary 名**
-（`net.minecraft.class_1144` / `method_4873(...)`）：Mixin 注解里的字符串不会被
-重映射，所以必须直接写成运行时用的名字。源码里的 Java 类型则照常用 mojmap。
+### 用标签一次覆盖一大类群系
 
-**2. 为什么要分两步重映射**
+一个个列群系太麻烦时用标签，前面加 `#`：
 
-正确做法是 `mojmap → obf → intermediary`，不能一步到位。
+```toml
+"#minecraft:is_forest=forest.mp3"     # 所有森林
+"#minecraft:is_taiga=taiga.mp3"       # 所有针叶林
+"#minecraft:is_jungle=jungle.mp3"     # 所有丛林
+"#minecraft:is_ocean=ocean.mp3"       # 所有海洋
+"#minecraft:is_mountain=mountain.mp3" # 所有山地
+"#minecraft:is_nether=nether.mp3"     # 下界全部
+```
 
-原因是 intermediary 会把某些方法登记在**接口**名下。例如 `blockPosition()`
-被记在 `class_5568` 上，而 Entity 实现了它。一步式的合成映射不做继承传播，
-就会生成 `di` 这种 obf 名而不是 `method_24515`，运行时直接 `NoSuchMethodError`。
-FART 在第二步会自动做继承传播，结果与真实运行时一致。
+常用的还有 `is_beach`、`is_river`、`is_badlands`、`is_hill`、`is_savanna`、`is_overworld`。
 
-**3. 为什么第三方音乐不走 `javax.sound.sampled` 播放**
+> 标签是 Minecraft 自带的分类，好处是**游戏以后加了新群系也会自动覆盖**。
 
-手机启动器自带的 JRE 里没有 `libjsound.so`，JavaSound 只剩"读文件"的能力，
-`AudioSystem.getSourceDataLine(...)` 必然失败。游戏自己的声音走 OpenAL，
-所以这里复用同一个 OpenAL 上下文——而且所有 AL 调用都留在**渲染线程**：
-Minecraft 初始化声音引擎时就是在渲染线程上 `alcMakeContextCurrent` 的。
+### 文件名怎么写
 
-另外 mp3 不走 `AudioSystem` 打开，而是直接 `new MpegAudioFileReader()`：
-JavaSound 的解码器是「`META-INF/services` + 线程上下文类加载器」注册的，
-Forge/Fabric 里模组 jar 不一定在那个类加载器上，会误报
-`UnsupportedAudioFileException`。
+写文件名就行，和 `config/musiclooper/music/` 里的对应（**忽略大小写**）：
 
----
+```toml
+"minecraft:plains=Calm.MP3"     # 能匹配到 calm.mp3
+```
 
-## 许可
+放在子文件夹里的话，写文件名即可（不需要写路径）。
 
-GPL-3.0 · 作者：**hemjj,蓝色大肥鱼**
+### 两个细节
+
+**① 文件找不到怎么办？**
+如果某条规则里的文件全部不存在或无法解码，那个群系会**回退到全部曲目随机**，不会出现"进这个群系就彻底没声音"的情况。日志里会记录下来。
+
+**② 和其它设置冲突时谁优先？**
+群系规则**优先**。也就是说，即使你开了「第三方音乐够多时禁用原版音乐」，只要当前群系命中了一条 `ONLY_CUSTOM` 规则，就按群系规则走。

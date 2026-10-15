@@ -1,11 +1,13 @@
 package com.arin.musiclooper;
 
+import com.arin.musiclooper.client.BiomeMusicRules;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +36,13 @@ public final class Config
     /** “足够多”的数量门槛 */
     public static int customMusicThreshold = 5;
 
+    /** 是否启用「按生物群系播放指定音乐」 */
+    public static boolean biomeMusicEnabled = false;
+    /** 群系规则原文，格式：群系ID=文件名1,文件名2；支持 #标签 与 * 兜底 */
+    public static List<String> biomeMusicRules = List.of();
+    /** 命中群系后原版音乐怎么处理 */
+    public static BiomeMusicRules.Mode biomeMusicMode = BiomeMusicRules.Mode.ONLY_CUSTOM;
+
     private Config()
     {
     }
@@ -58,6 +67,9 @@ public final class Config
 
         Map<String, String> values = new HashMap<>();
         String section = "";
+        // 跨行数组：遇到 key = [ 之后，把后续行攒起来直到 ]
+        String pendingKey = null;
+        StringBuilder pendingValue = new StringBuilder();
 
         try
         {
@@ -67,6 +79,19 @@ public final class Config
                 String line = stripComment(raw).trim();
                 if (line.isEmpty())
                 {
+                    continue;
+                }
+
+                // 正在收集数组内容
+                if (pendingKey != null)
+                {
+                    pendingValue.append(line);
+                    if (line.contains("]"))
+                    {
+                        values.put(pendingKey, pendingValue.toString());
+                        pendingKey = null;
+                        pendingValue.setLength(0);
+                    }
                     continue;
                 }
 
@@ -82,9 +107,19 @@ public final class Config
                     continue;
                 }
 
-                String key = line.substring(0, equals).trim().toLowerCase(Locale.ROOT);
+                String key = section + "." + line.substring(0, equals).trim().toLowerCase(Locale.ROOT);
                 String value = line.substring(equals + 1).trim();
-                values.put(section + "." + key, value);
+
+                // 数组开头但没有在同一行闭合：先攒着
+                if (value.startsWith("[") && !value.contains("]"))
+                {
+                    pendingKey = key;
+                    pendingValue.setLength(0);
+                    pendingValue.append(value);
+                    continue;
+                }
+
+                values.put(key, value);
             }
         }
         catch (IOException exception)
@@ -99,8 +134,34 @@ public final class Config
         playCustomMusic = bool(values, "custom.playCustomMusic", playCustomMusic);
         customMusicVolume = decimal(values, "custom.customMusicVolume", customMusicVolume);
 
+        biomeMusicEnabled = bool(values, "biomemusic.enabled", biomeMusicEnabled);
+        biomeMusicRules = array(values, "biomemusic.rules", biomeMusicRules);
+        biomeMusicMode = modeOf(values.get("biomemusic.mode"), biomeMusicMode);
+
+        // 交给匹配逻辑
+        BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
+
         MusicLooper.LOGGER.info("配置已加载：loopVanillaMusic={}, playCustomMusic={}, disableWhenEnough={} (>= {}), volume={}",
                 loopVanillaMusic, playCustomMusic, disableVanillaMusicWhenEnoughCustom, customMusicThreshold, customMusicVolume);
+    }
+
+    private static BiomeMusicRules.Mode modeOf(String raw, BiomeMusicRules.Mode fallback)
+    {
+        if (raw == null)
+        {
+            return fallback;
+        }
+        String value = raw.trim().replace("\"", "").replace("'", "").toUpperCase(Locale.ROOT);
+        return switch (value)
+        {
+            case "ONLY_CUSTOM" -> BiomeMusicRules.Mode.ONLY_CUSTOM;
+            case "MIX" -> BiomeMusicRules.Mode.MIX;
+            default ->
+            {
+                MusicLooper.LOGGER.warn("未知的 biomeMusic.mode：{}，使用默认值 {}", raw, fallback);
+                yield fallback;
+            }
+        };
     }
 
     /** 去掉行尾注释；TOML 里 # 之后的都是注释 */
@@ -150,6 +211,54 @@ public final class Config
         }
     }
 
+    /**
+     * 解析字符串数组，支持两种写法：
+     * <pre>
+     *   key = ["a", "b"]        单行
+     *   key = [                 跨行
+     *       "a",
+     *       "b",
+     *   ]
+     * </pre>
+     * 元素两端的引号会被去掉。
+     */
+    private static List<String> array(Map<String, String> values, String key, List<String> fallback)
+    {
+        String raw = values.get(key);
+        if (raw == null)
+        {
+            return fallback;
+        }
+
+        String body = raw.trim();
+        int open = body.indexOf('[');
+        int close = body.lastIndexOf(']');
+        if (open < 0 || close <= open)
+        {
+            MusicLooper.LOGGER.warn("配置项 {} 不是合法的数组，使用默认值", key);
+            return fallback;
+        }
+        body = body.substring(open + 1, close);
+
+        List<String> result = new ArrayList<>();
+        for (String part : body.split(","))
+        {
+            String item = part.trim();
+            // 去掉两端引号
+            if (item.length() >= 2
+                    && ((item.startsWith("\"") && item.endsWith("\""))
+                        || (item.startsWith("'") && item.endsWith("'"))))
+            {
+                item = item.substring(1, item.length() - 1);
+            }
+            if (!item.isEmpty())
+            {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
     private static String defaultText()
     {
         return """
@@ -182,6 +291,26 @@ public final class Config
                     # 实际音量 = 该倍率 × 游戏内“音乐”音量滑块。
                     # 默认：1.0
                     customMusicVolume = 1.0
+
+                # 按生物群系播放指定音乐
+                # 需要先把音乐放进 config/musiclooper/music
+                [biomeMusic]
+                    # 总开关
+                    enabled = false
+
+                    # 规则格式：群系ID=文件名1,文件名2
+                    #   具体群系：minecraft:plains（省略命名空间时默认 minecraft）
+                    #   群系标签："#minecraft:is_forest"（一次覆盖所有森林类群系）
+                    #   兜底规则：*（前面都没命中时使用）
+                    rules = [
+                        "minecraft:plains=calm.mp3,morning.mp3",
+                        "#minecraft:is_forest=forest_theme.mp3",
+                    ]
+
+                    # 命中的群系里，原版音乐怎么处理：
+                    #   ONLY_CUSTOM  只播配置的音乐（默认）
+                    #   MIX          配置的音乐与原版交替
+                    mode = "ONLY_CUSTOM"
                 """;
     }
 }
