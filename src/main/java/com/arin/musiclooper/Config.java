@@ -1,9 +1,12 @@
 package com.arin.musiclooper;
 
+import com.arin.musiclooper.client.BiomeMusicRules;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
+
+import java.util.List;
 
 /**
  * config/musiclooper-client.toml 里的配置项。
@@ -18,6 +21,9 @@ public final class Config
     private static final ForgeConfigSpec.DoubleValue CUSTOM_MUSIC_VOLUME;
     private static final ForgeConfigSpec.BooleanValue DISABLE_VANILLA_WHEN_ENOUGH_CUSTOM;
     private static final ForgeConfigSpec.IntValue CUSTOM_MUSIC_THRESHOLD;
+    private static final ForgeConfigSpec.BooleanValue BIOME_MUSIC_ENABLED;
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> BIOME_MUSIC_RULES;
+    private static final ForgeConfigSpec.EnumValue<BiomeMusicRules.Mode> BIOME_MUSIC_MODE;
 
     /** 原版音乐是否连续播放（一首结束立刻接下一首，不再有几分钟的空档） */
     public static boolean loopVanillaMusic = true;
@@ -29,6 +35,12 @@ public final class Config
     public static boolean disableVanillaMusicWhenEnoughCustom = false;
     /** “足够多”的数量门槛 */
     public static int customMusicThreshold = 5;
+    /** 是否启用「按生物群系播放指定音乐」 */
+    public static boolean biomeMusicEnabled = false;
+    /** 群系规则，格式：群系ID=文件名1,文件名2；支持 #标签 与 * 兜底 */
+    public static List<String> biomeMusicRules = List.of();
+    /** 命中群系后原版音乐怎么处理 */
+    public static BiomeMusicRules.Mode biomeMusicMode = BiomeMusicRules.Mode.ONLY_CUSTOM;
 
     static
     {
@@ -64,6 +76,27 @@ public final class Config
                 .defineInRange("customMusicVolume", 1.0D, 0.0D, 1.0D);
         builder.pop();
 
+        builder.comment("按生物群系播放指定音乐",
+                        "需要先把音乐放进 config/musiclooper/music").push("biomeMusic");
+        BIOME_MUSIC_ENABLED = builder
+                .comment("是否启用本功能。",
+                        "默认：false（不影响其它设置）")
+                .define("enabled", false);
+        BIOME_MUSIC_RULES = builder
+                .comment("规则列表，每条格式为：群系ID=文件名1,文件名2",
+                        "  具体群系：minecraft:plains（省略命名空间时默认 minecraft）",
+                        "  群系标签：\"#minecraft:is_forest\"（一次覆盖所有森林类群系）",
+                        "  兜底规则：*（前面都没命中时使用）",
+                        "匹配顺序：具体群系 → 标签 → 兜底",
+                        "文件不可用时该群系回退到全部曲目随机，不会彻底没声音")
+                .defineListAllowEmpty("rules", List.of(), entry -> entry instanceof String);
+        BIOME_MUSIC_MODE = builder
+                .comment("命中的群系里，原版音乐怎么处理：",
+                        "  ONLY_CUSTOM  只播配置的音乐（默认）",
+                        "  MIX          配置的音乐与原版交替")
+                .defineEnum("mode", BiomeMusicRules.Mode.ONLY_CUSTOM);
+        builder.pop();
+
         SPEC = builder.build();
     }
 
@@ -81,6 +114,11 @@ public final class Config
         customMusicVolume = CUSTOM_MUSIC_VOLUME.get();
         disableVanillaMusicWhenEnoughCustom = DISABLE_VANILLA_WHEN_ENOUGH_CUSTOM.get();
         customMusicThreshold = CUSTOM_MUSIC_THRESHOLD.get();
+
+        biomeMusicEnabled = BIOME_MUSIC_ENABLED.get();
+        biomeMusicMode = BIOME_MUSIC_MODE.get();
+        biomeMusicRules = BIOME_MUSIC_RULES.get().stream().map(String::valueOf).toList();
+        BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
 
         MusicLooper.LOGGER.debug("Music Looper 配置已加载：loopVanillaMusic={}, playCustomMusic={}, disableWhenEnough={} (>= {}), volume={}",
                 loopVanillaMusic, playCustomMusic, disableVanillaMusicWhenEnoughCustom, customMusicThreshold, customMusicVolume);
