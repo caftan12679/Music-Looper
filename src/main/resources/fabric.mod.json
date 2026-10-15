@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "musiclooper",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Music Looper",
   "description": "让原版音乐连续循环播放，并把 config/musiclooper/music 里的第三方音乐加入随机播放列表。\n当第三方音乐数量达到设定门槛时，可以在配置里完全禁用原版音乐。",
   "authors": [

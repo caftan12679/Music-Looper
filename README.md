@@ -41,7 +41,11 @@
 /musiclooper reload
 ```
 
-**3. 让原版音乐闭嘴**
+**3. 按生物群系播放指定音乐**
+
+想让某个群系固定放某几首歌？可以在配置里按群系（或群系标签）指定曲目。
+
+**4. 让原版音乐闭嘴**
 
 如果你只想听自己的歌，打开配置文件：
 
@@ -68,58 +72,102 @@
 
 | 指令 | 作用 |
 | --- | --- |
+| `/musiclooper play <文件名>` | **立刻**停掉当前音乐，改播指定的这首 |
+| `/musiclooper biome` | 查看当前群系 ID、命中了哪条规则 |
 | `/musiclooper reload` | 重新扫描音乐文件夹 |
 | `/musiclooper status` | 查看认出几首、当前配置 |
 
 ---
 
-## 安装
-
-1. 装好 **Fabric Loader 0.19.5**（Minecraft 1.21.1）
-2. 把 **Fabric API**（1.21.1 版）放进 `.minecraft/mods/`
-3. 把 `musiclooper-fabric-1.21.1-1.0.0.jar` 也放进 `.minecraft/mods/`
-4. 启动游戏（需要 Java 21）
-
 ---
 
-## 与 1.20.1 版的差别
+## 按生物群系播放指定音乐
 
-从 1.20.1 的 Fabric 版移植过来，代码几乎原样复用。实际改动只有三处：
+想让某个群系固定放某几首歌？用这个功能。
 
-| 改动 | 原因 |
-| --- | --- |
-| `OggAudioStream` → `JOrbisAudioStream` | 1.21 重命名了这个类，包名也从 `com.mojang.blaze3d.audio` 移到 `net.minecraft.client.sounds` |
-| `--release 17` → `--release 21`，Mixin `JAVA_17` → `JAVA_21` | Minecraft 1.21 起要求 Java 21 |
-| `fabric.mod.json` 的版本约束 | `minecraft` 改成 `~1.21.1`，`java` 改成 `>=21` |
+### 快速上手
 
-**为什么其他都不用改**：Fabric 的 intermediary 命名空间跨版本相当稳定。
-实测 20 个用到的类里，19 个的 intermediary 名字在两个版本里**指向同一个 MC 类**
-（例如 `class_310` 一直是 `Minecraft`），Mixin 挂的 `method_4873` / `method_4877`
-也完全一致。
+1. 把音乐放进 `config/musiclooper/music/`
+2. 打开 `config/musiclooper-client.toml`
+3. 找到 `[biomeMusic]` 段，把 `enabled` 改成 `true`
+4. 在 `rules` 里写规则
+5. 进游戏敲 `/musiclooper reload` 让它重新扫描
 
-唯一的例外就是那个 Ogg 解码器——顺带一提，改完名字后它的
-**运行时名字没变**（都还是 `class_4228`），只有中间的 mojmap 名变了。
+### 规则怎么写
 
----
+每条规则的格式是 **`群系ID=文件名1,文件名2`**：
 
-## 从源码构建
+```toml
+[biomeMusic]
+    enabled = true
 
-正常做法是用 Fabric Loom。但本仓库里的 jar **不是**用 Loom 构建的：
-构建它的设备是 Android/Termux，Loom 在那里跑不通。走的是 `build.sh` 里的手工流程：
+    rules = [
+        # ① 具体群系：只在平原放这两首
+        "minecraft:plains=calm.mp3,morning.mp3",
 
-1. 用 JDK 21 编译（classpath = FART 反混淆后的 1.21.1 客户端 + Fabric Loader + Mixin）
-2. 用 FART **分两步**重映射：`mojmap → obf → intermediary`
-3. 打包（含 `fabric.mod.json`、`mixins.json`、内嵌 mp3 解码器）
+        # ② 群系标签：所有森林类群系共用（注意前面有 #）
+        "#minecraft:is_forest=forest_theme.mp3",
 
-### 为什么必须分两步
+        # ③ 兜底：前面都没命中时用它
+        "*=fallback.mp3",
+    ]
 
-intermediary 会把某些方法登记在**接口**名下。例如 `blockPosition()` 记在
-`class_5568` 上，而 Entity 实现了它。一步式（直接合成的 `mojmap → intermediary`）
-不做继承传播，会生成 obf 名而不是 `method_XXXX`，运行时 `NoSuchMethodError`。
-FART 在第二步会自动做继承传播。
+    # ONLY_CUSTOM  该群系只放你配的音乐，原版音乐不出声（默认）
+    # MIX          你配的音乐和原版音乐交替播放
+    mode = "ONLY_CUSTOM"
+```
 
----
+**匹配顺序**：具体群系 → 标签 → 兜底。
 
-## 许可
+### 群系 ID 怎么写
 
-GPL-3.0 · 作者：**hemjj,蓝色大肥鱼**
+格式是 `命名空间:群系名`，省略命名空间时默认 `minecraft`：
+
+```toml
+"minecraft:plains=..."      # 完整写法
+"plains=..."                # 等价（默认 minecraft）
+"biomesoplenty:lavender_field=..."   # 其它模组的群系也行
+```
+
+**不知道群系 ID 是什么？** 站到那个群系里敲：
+
+```
+/musiclooper biome
+```
+
+它会告诉你当前群系 ID、有没有命中规则、命中了哪几首。
+
+### 用标签一次覆盖一大类群系
+
+一个个列群系太麻烦时用标签，前面加 `#`：
+
+```toml
+"#minecraft:is_forest=forest.mp3"     # 所有森林
+"#minecraft:is_taiga=taiga.mp3"       # 所有针叶林
+"#minecraft:is_jungle=jungle.mp3"     # 所有丛林
+"#minecraft:is_ocean=ocean.mp3"       # 所有海洋
+"#minecraft:is_mountain=mountain.mp3" # 所有山地
+"#minecraft:is_nether=nether.mp3"     # 下界全部
+```
+
+常用的还有 `is_beach`、`is_river`、`is_badlands`、`is_hill`、`is_savanna`、`is_overworld`。
+
+> 标签是 Minecraft 自带的分类，好处是**游戏以后加了新群系也会自动覆盖**。
+
+### 文件名怎么写
+
+写文件名就行，和 `config/musiclooper/music/` 里的对应（**忽略大小写**）：
+
+```toml
+"minecraft:plains=Calm.MP3"     # 能匹配到 calm.mp3
+```
+
+放在子文件夹里的话，写文件名即可（不需要写路径）。
+
+### 两个细节
+
+**① 文件找不到怎么办？**
+如果某条规则里的文件全部不存在或无法解码，那个群系会**回退到全部曲目随机**，不会出现"进这个群系就彻底没声音"的情况。日志里会记录下来。
+
+**② 和其它设置冲突时谁优先？**
+群系规则**优先**。也就是说，即使你开了「第三方音乐够多时禁用原版音乐」，只要当前群系命中了一条 `ONLY_CUSTOM` 规则，就按群系规则走。
