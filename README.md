@@ -1,11 +1,9 @@
-# Music Looper（1.21.1 / Fabric 版）
+# Music Looper（NeoForge 1.21.1 版）
 
 让 Minecraft 的音乐**永远不停**，还能放你自己的歌。
 
-> 适用版本：Minecraft **1.21.1** + Fabric Loader **0.19.5** · 纯客户端模组
-> 需要同时安装 **Fabric API**（1.21.1 对应版本）
-
-> 需要 **Java 21**（Minecraft 1.21 起的要求）
+> 适用版本：Minecraft **1.21.1** + NeoForge **21.1.259** · 纯客户端模组
+> 服务器不用装。需要 **Java 21**
 
 ---
 
