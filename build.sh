@@ -31,7 +31,7 @@ python3 - <<'PY'
 import os
 props = {
  'loader_version_range': '[1,)', 'mod_license': 'GPL-3.0', 'mod_id': 'musiclooper',
- 'mod_version': '1.0.0', 'mod_name': 'Music Looper', 'neo_version': '21.1.259',
+ 'mod_version': '1.1.0-hotfix', 'mod_name': 'Music Looper', 'neo_version': '21.1.259',
  'minecraft_version_range': '[1.21.1]',
 }
 s = open('src/main/resources/META-INF/neoforge.mods.toml', encoding='utf-8').read()
@@ -46,9 +46,9 @@ for j in "$HOME/mp3test/nospi/mp3spi-1.9.5.4.jar" \
          "$HOME/mp3test/nospi/tritonus-share-0.3.7.4.jar"; do
     unzip -q -o "$j" -x 'META-INF/MANIFEST.MF' 'module-info.class' 2>/dev/null || true
 done
-rm -f "$BT/musiclooper-neoforge-1.21.1-1.0.0.jar"
-jar --create --file "$BT/musiclooper-neoforge-1.21.1-1.0.0.jar" \
+rm -f "$BT/musiclooper-neoforge-1.21.1-1.1.0-hotfix.jar"
+jar --create --file "$BT/musiclooper-neoforge-1.21.1-1.1.0-hotfix.jar" \
     --manifest <(printf 'Manifest-Version: 1.0\nImplementation-Title: musiclooper\nImplementation-Version: 1.0.0\n\n') -C . .
 
 echo
-echo "完成：$BT/musiclooper-neoforge-1.21.1-1.0.0.jar"
+echo "完成：$BT/musiclooper-neoforge-1.21.1-1.1.0-hotfix.jar"
