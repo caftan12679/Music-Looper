@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
 import net.minecraft.sounds.Music;
+import net.minecraft.sounds.Musics;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
@@ -54,7 +55,7 @@ public final class VanillaMusicProvider
             return Optional.of(new Music(SoundEvents.MUSIC_UNDER_WATER, 12000, 24000, false));
         }
 
-        return biomeMusic(level, player);
+        return biomeMusic(level, player).or(() -> Optional.of(Musics.GAME));
     }
 
     private static Optional<Music> biomeMusic(Level level, LocalPlayer player)
