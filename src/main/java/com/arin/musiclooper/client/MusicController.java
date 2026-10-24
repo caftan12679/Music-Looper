@@ -10,7 +10,6 @@ import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biome;
-import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -19,8 +18,9 @@ import java.util.Optional;
 /**
  * 音乐调度核心：决定“下一首播什么”，并把原版音乐与第三方音乐排成一条连续的播放队列。
  *
- * <p>实现方式完全基于公开 API + NeoForge 事件：用 {@link PlaySoundEvent}
- * 拦下不需要的原版音乐，用 {@code SoundManager#isActive} 判断曲目是否结束。</p>
+ * <p>与 Forge 版的逻辑完全一致，差别只在拦截方式：这里不再用 {@code PlaySoundEvent}，
+ * 而是由 {@link com.arin.musiclooper.client.mixin.SoundManagerMixin} 挂在
+ * {@code SoundManager.play} 上，调用 {@link #shouldBlock(SoundInstance)} 询问要不要拦。</p>
  */
 public final class MusicController
 {
@@ -294,29 +294,25 @@ public final class MusicController
      *     <li>其余情况由 {@link #ownsRotation()} 决定。</li>
      * </ul>
      */
-    public static void onPlaySound(PlaySoundEvent event)
+    public static boolean shouldBlock(SoundInstance sound)
     {
-        SoundInstance sound = event.getSound();
         if (sound == null || sound.getSource() != SoundSource.MUSIC)
         {
-            return;
+            return false;
         }
 
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null)
         {
-            return;
+            return false;
         }
 
         if (sound == activeVanilla)
         {
-            return;
+            return false;
         }
 
-        if (ownsRotation())
-        {
-            event.setSound(null);
-        }
+        return ownsRotation();
     }
 
     private static boolean ownsRotation()

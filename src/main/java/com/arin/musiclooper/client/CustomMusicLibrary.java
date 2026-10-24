@@ -2,7 +2,7 @@ package com.arin.musiclooper.client;
 
 import com.arin.musiclooper.MusicLooper;
 import com.arin.musiclooper.client.audio.AudioDecoders;
-import net.neoforged.fml.loading.FMLPaths;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 public final class CustomMusicLibrary
 {
     /** config/musiclooper/music */
-    public static final Path MUSIC_DIR = FMLPaths.CONFIGDIR.get()
+    public static final Path MUSIC_DIR = FabricLoader.getInstance().getConfigDir()
             .resolve(MusicLooper.MODID).resolve("music");
 
     private static final String README_NAME = "说明.txt";

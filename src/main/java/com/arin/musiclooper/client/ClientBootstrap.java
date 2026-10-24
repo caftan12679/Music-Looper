@@ -1,15 +1,12 @@
 package com.arin.musiclooper.client;
 
 import com.arin.musiclooper.MusicLooper;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 
 /**
- * 客户端入口：把音乐调度和指令接进 NeoForge 的事件总线。
+ * 客户端入口：把音乐调度和指令接进 Fabric 的回调。
  */
 public final class ClientBootstrap
 {
@@ -17,34 +14,25 @@ public final class ClientBootstrap
     {
     }
 
-    public static void init(IEventBus modEventBus)
+    public static void init()
     {
-        // 每个客户端 tick 结束时驱动一次音乐调度（1.21 起拆成了 Pre / Post）
-        NeoForge.EVENT_BUS.addListener(ClientBootstrap::onClientTickPost);
-
-        // 拦下不该播的原版音乐。NeoForge 有 PlaySoundEvent，
-        // 所以这里和 Forge 版写法一致，不需要 Mixin。
-        NeoForge.EVENT_BUS.addListener(MusicController::onPlaySound);
+        // 每个客户端 tick 结束时驱动一次音乐调度
+        ClientTickEvents.END_CLIENT_TICK.register(ClientBootstrap::onClientTick);
 
         // /musiclooper reload | status
-        NeoForge.EVENT_BUS.addListener(ClientBootstrap::onRegisterClientCommands);
+        ClientCommandRegistrationCallback.EVENT.register(ClientCommands::register);
     }
 
-    private static void onClientTickPost(ClientTickEvent.Post event)
+    private static void onClientTick(Minecraft client)
     {
         try
         {
-            MusicController.tick(Minecraft.getInstance());
+            MusicController.tick(client);
         }
         catch (Throwable throwable)
         {
             // 音乐出问题也不该让游戏崩掉
             MusicLooper.LOGGER.error("音乐调度出现异常", throwable);
         }
-    }
-
-    private static void onRegisterClientCommands(RegisterClientCommandsEvent event)
-    {
-        ClientCommands.register(event);
     }
 }
