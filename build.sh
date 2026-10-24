@@ -78,10 +78,10 @@ for j in "$HOME/mp3test/nospi/mp3spi-1.9.5.4.jar" \
          "$HOME/mp3test/nospi/tritonus-share-0.3.7.4.jar"; do
     unzip -q -o "$j" -x 'META-INF/MANIFEST.MF' 'module-info.class' 2>/dev/null || true
 done
-rm -f ../musiclooper-fabric-1.0.0.jar
-jar --create --file ../musiclooper-fabric-1.0.0.jar \
-    --manifest <(printf 'Manifest-Version: 1.0\nImplementation-Title: musiclooper\nImplementation-Version: 1.0.0\n\n') \
+rm -f ../musiclooper-fabric-1.20.1-1.1.0-hotfix.jar
+jar --create --file ../musiclooper-fabric-1.20.1-1.1.0-hotfix.jar \
+    --manifest <(printf 'Manifest-Version: 1.0\nImplementation-Title: musiclooper\nImplementation-Version: 1.1.0-hotfix\n\n') \
     -C . .
 
 echo
-echo "完成：$BUILD_TOOLS/musiclooper-fabric-1.0.0.jar"
+echo "完成：$BUILD_TOOLS/musiclooper-fabric-1.20.1-1.1.0-hotfix.jar"
