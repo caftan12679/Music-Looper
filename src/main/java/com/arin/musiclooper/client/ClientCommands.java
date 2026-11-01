@@ -53,7 +53,10 @@ public final class ClientCommands
                                         StringArgumentType.getString(command, "文件名")))))
                 // /musiclooper biome —— 看看当前群系命中了什么
                 .then(ClientCommandManager.literal("biome")
-                        .executes(command -> biome(command.getSource())));
+                        .executes(command -> biome(command.getSource())))
+                // /musiclooper combat —— 战斗音乐状态
+                .then(ClientCommandManager.literal("combat")
+                        .executes(command -> combat(command.getSource())));
 
         dispatcher.register(root);
     }
@@ -124,6 +127,38 @@ public final class ClientCommands
         return hit.size();
     }
 
+    /** 战斗音乐状态 */
+    private static int combat(FabricClientCommandSource source)
+    {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null)
+        {
+            source.sendError(Component.literal("要先进入世界才能查看战斗状态"));
+            return 0;
+        }
+
+        int held = CombatTracker.heldTicks();
+        boolean inCombat = held > 0;
+
+        source.sendFeedback(Component.literal("战斗音乐功能："
+                + (Config.combatMusicEnabled ? "已启用" : "未启用")));
+        source.sendFeedback(Component.literal("当前状态："
+                + (inCombat ? "战斗中（还剩 " + held + " tick 缓冲）" : "不在战斗")));
+        source.sendFeedback(Component.literal("本 tick 检测到战斗动作："
+                + (CombatTracker.detectedThisTick() ? "是" : "否")));
+        source.sendFeedback(Component.literal("战斗音乐文件夹：" + CustomMusicLibrary.COMBAT_DIR));
+        source.sendFeedback(Component.literal("可播放的战斗曲目："
+                + CustomMusicLibrary.combatPlayableCount() + " 首"));
+        source.sendFeedback(Component.literal(String.format(
+                "配置：检测半径 %.0f 格 · 结束延迟 %d tick · 循环 %s · 音量 %.2f",
+                (double) Config.combatMusicDetectRadius,
+                Config.combatMusicEndDelay,
+                Config.combatMusicLoop ? "开" : "关",
+                Config.combatMusicVolume)));
+
+        return inCombat ? 1 : 0;
+    }
+
     private static int reload(FabricClientCommandSource source)
     {
         CustomMusicLibrary.refresh();
@@ -176,6 +211,10 @@ public final class ClientCommands
                 "配置：原版循环=%s，第三方音乐=%s，音量=%.2f，门槛禁用原版=%s(%d 首)",
                 Config.loopVanillaMusic, Config.playCustomMusic, Config.customMusicVolume,
                 Config.disableVanillaMusicWhenEnoughCustom, Config.customMusicThreshold)));
+
+        source.sendFeedback(Component.literal("可播放的战斗音乐："
+                + CustomMusicLibrary.combatPlayableCount() + " 首"
+                + (Config.combatMusicEnabled ? "" : "（功能已关闭）")));
         return tracks.size();
     }
 }
