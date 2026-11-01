@@ -37,6 +37,8 @@ public final class MusicController
     private static SoundInstance activeVanilla;
     /** 当前是否在播放第三方音乐 */
     private static boolean activeIsCustom;
+    /** 当前是否在播放战斗音乐 */
+    private static boolean activeIsCombat;
     private static int idleTicks;
     private static boolean announced;
     /** 上一次看到的存档，用来判断“刚进入世界”，进入时才扫描一次音乐文件夹 */
@@ -76,6 +78,12 @@ public final class MusicController
         }
 
         float musicVolume = minecraft.options.getSoundSourceVolume(SoundSource.MUSIC);
+        // 战斗音乐优先于一切常规安排：检测到战斗时接管播放，战斗结束后再交还
+        if (tickCombat(minecraft, musicVolume))
+        {
+            return;
+        }
+
         PLAYER.setGain((float) (Config.customMusicVolume * musicVolume));
 
         // 曲目结束检测
@@ -103,6 +111,73 @@ public final class MusicController
         }
         idleTicks = 0;
         startNext(minecraft, musicVolume);
+    }
+
+    /**
+     * 战斗音乐分支。每 tick 在常规安排之前调用一次。
+     *
+     * <p>返回 {@code true} 表示本 tick 由战斗音乐接管，调用方应当直接结束本次 tick，
+     * 不要再走原版 / 第三方音乐的轮播逻辑。</p>
+     */
+    private static boolean tickCombat(Minecraft minecraft, float musicVolume)
+    {
+        boolean inCombat = CombatTracker.update(minecraft.player);
+
+        if (inCombat)
+        {
+            List<Path> combatTracks = CustomMusicLibrary.combatPlayableTracks();
+            if (!Config.combatMusicEnabled || combatTracks.isEmpty())
+            {
+                // 没配战斗音乐就当没这个功能，常规音乐照常播
+                if (activeIsCombat)
+                {
+                    PLAYER.stop();
+                    activeIsCombat = false;
+                    idleTicks = 0;
+                }
+                return false;
+            }
+
+            PLAYER.setGain((float) (Config.combatMusicVolume * musicVolume));
+
+            if (!activeIsCombat)
+            {
+                // 刚进入战斗：停掉正在播的一切，换成战斗曲
+                stopCurrent(minecraft);
+                startCombat(combatTracks);
+            }
+            else if (!PLAYER.isBusy())
+            {
+                // 一首战斗曲放完了，战斗还没结束
+                if (Config.combatMusicLoop)
+                {
+                    startCombat(combatTracks);
+                }
+                else
+                {
+                    activeIsCombat = false;
+                }
+            }
+            return true;
+        }
+
+        // 战斗结束：停掉战斗曲，并把 idleTicks 清空让常规音乐尽快接上
+        if (activeIsCombat)
+        {
+            PLAYER.stop();
+            activeIsCombat = false;
+            idleTicks = 0;
+        }
+        return false;
+    }
+
+    /** 随机挑一首战斗曲播放 */
+    private static void startCombat(List<Path> combatTracks)
+    {
+        Path track = combatTracks.get(RANDOM.nextInt(combatTracks.size()));
+        activeIsCombat = true;
+        PLAYER.play(track);
+        MusicLooper.LOGGER.debug("开始播放战斗音乐：{}", track.getFileName());
     }
 
     private static void startNext(Minecraft minecraft, float musicVolume)
@@ -253,11 +328,12 @@ public final class MusicController
         }
         activeVanilla = null;
 
-        if (activeIsCustom || PLAYER.isBusy())
+        if (activeIsCustom || activeIsCombat || PLAYER.isBusy())
         {
             PLAYER.stop();
         }
         activeIsCustom = false;
+        activeIsCombat = false;
         idleTicks = 0;
     }
 
@@ -320,7 +396,7 @@ public final class MusicController
 
     private static boolean ownsRotation()
     {
-        if (activeIsCustom || PLAYER.isBusy())
+        if (activeIsCustom || activeIsCombat || PLAYER.isBusy())
         {
             return true;
         }
@@ -335,13 +411,15 @@ public final class MusicController
 
     private static void reset()
     {
-        if (activeIsCustom || PLAYER.isBusy())
+        if (activeIsCustom || activeIsCombat || PLAYER.isBusy())
         {
             PLAYER.stop();
         }
         activeIsCustom = false;
+        activeIsCombat = false;
         activeVanilla = null;
         idleTicks = 0;
         lastLevel = null;
+        CombatTracker.reset();
     }
 }

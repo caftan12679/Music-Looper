@@ -24,6 +24,12 @@ public final class Config
     private static final ForgeConfigSpec.BooleanValue BIOME_MUSIC_ENABLED;
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> BIOME_MUSIC_RULES;
     private static final ForgeConfigSpec.EnumValue<BiomeMusicRules.Mode> BIOME_MUSIC_MODE;
+    private static final ForgeConfigSpec.BooleanValue COMBAT_MUSIC_ENABLED;
+    private static final ForgeConfigSpec.IntValue COMBAT_MUSIC_DETECT_RADIUS;
+    private static final ForgeConfigSpec.IntValue COMBAT_MUSIC_END_DELAY;
+    private static final ForgeConfigSpec.IntValue COMBAT_MUSIC_TIMEOUT_TICKS;
+    private static final ForgeConfigSpec.DoubleValue COMBAT_MUSIC_VOLUME;
+    private static final ForgeConfigSpec.BooleanValue COMBAT_MUSIC_LOOP;
 
     /** 原版音乐是否连续播放（一首结束立刻接下一首，不再有几分钟的空档） */
     public static boolean loopVanillaMusic = true;
@@ -41,6 +47,19 @@ public final class Config
     public static List<String> biomeMusicRules = List.of();
     /** 命中群系后原版音乐怎么处理 */
     public static BiomeMusicRules.Mode biomeMusicMode = BiomeMusicRules.Mode.ONLY_CUSTOM;
+
+    /** 是否启用战斗音乐（config/musiclooper/combat） */
+    public static boolean combatMusicEnabled = true;
+    /** 检测敌人的半径（格） */
+    public static int combatMusicDetectRadius = 16;
+    /** 战斗结束后再放多少 tick 才停（100 tick = 5 秒） */
+    public static int combatMusicEndDelay = 100;
+    /** 出手后多少 tick 内仍算「在战斗」 */
+    public static int combatMusicTimeoutTicks = 100;
+    /** 战斗音乐音量倍率 */
+    public static double combatMusicVolume = 1.0D;
+    /** 战斗期间是否一首接一首地循环 */
+    public static boolean combatMusicLoop = true;
 
     static
     {
@@ -97,6 +116,41 @@ public final class Config
                 .defineEnum("mode", BiomeMusicRules.Mode.ONLY_CUSTOM);
         builder.pop();
 
+        builder.comment("战斗音乐",
+                        "需要先把音乐放进 config/musiclooper/combat",
+                        "这个文件夹里的曲子平时完全不播放，只在检测到战斗时响起",
+                        "战斗结束后会自动停下并交还给常规音乐").push("combatMusic");
+        COMBAT_MUSIC_ENABLED = builder
+                .comment("是否启用战斗音乐。",
+                        "文件夹为空时开启也不会有任何影响。",
+                        "默认：true")
+                .define("enabled", true);
+        COMBAT_MUSIC_DETECT_RADIUS = builder
+                .comment("检测敌对生物的半径（格）。",
+                        "这个范围内的敌对生物如果把你设为目标，就算进入战斗。",
+                        "默认：16")
+                .defineInRange("detectRadius", 16, 1, 128);
+        COMBAT_MUSIC_END_DELAY = builder
+                .comment("战斗结束后再播放多少 tick 才停止（20 tick = 1 秒）。",
+                        "避免打完最后一下音乐立刻断掉。",
+                        "默认：100（5 秒）")
+                .defineInRange("endDelay", 100, 0, 1200);
+        COMBAT_MUSIC_TIMEOUT_TICKS = builder
+                .comment("出手攻击之后，多少 tick 内仍然算「在战斗」。",
+                        "默认：100（5 秒）")
+                .defineInRange("combatTimeoutTicks", 100, 0, 1200);
+        COMBAT_MUSIC_VOLUME = builder
+                .comment("战斗音乐的音量倍率（0.0 ~ 1.0）。",
+                        "实际音量 = 该倍率 × 游戏内“音乐”音量滑块。",
+                        "默认：1.0")
+                .defineInRange("volume", 1.0D, 0.0D, 1.0D);
+        COMBAT_MUSIC_LOOP = builder
+                .comment("战斗期间是否一首接一首地循环播放。",
+                        "关闭后一场战斗只放一首。",
+                        "默认：true")
+                .define("loop", true);
+        builder.pop();
+
         SPEC = builder.build();
     }
 
@@ -119,6 +173,13 @@ public final class Config
         biomeMusicMode = BIOME_MUSIC_MODE.get();
         biomeMusicRules = BIOME_MUSIC_RULES.get().stream().map(String::valueOf).toList();
         BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
+
+        combatMusicEnabled = COMBAT_MUSIC_ENABLED.get();
+        combatMusicDetectRadius = COMBAT_MUSIC_DETECT_RADIUS.get();
+        combatMusicEndDelay = COMBAT_MUSIC_END_DELAY.get();
+        combatMusicTimeoutTicks = COMBAT_MUSIC_TIMEOUT_TICKS.get();
+        combatMusicVolume = COMBAT_MUSIC_VOLUME.get();
+        combatMusicLoop = COMBAT_MUSIC_LOOP.get();
 
         MusicLooper.LOGGER.debug("Music Looper 配置已加载：loopVanillaMusic={}, playCustomMusic={}, disableWhenEnough={} (>= {}), volume={}",
                 loopVanillaMusic, playCustomMusic, disableVanillaMusicWhenEnoughCustom, customMusicThreshold, customMusicVolume);
