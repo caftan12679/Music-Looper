@@ -43,6 +43,19 @@ public final class Config
     /** 命中群系后原版音乐怎么处理 */
     public static BiomeMusicRules.Mode biomeMusicMode = BiomeMusicRules.Mode.ONLY_CUSTOM;
 
+    /** 是否启用战斗音乐（config/musiclooper/combat） */
+    public static boolean combatMusicEnabled = true;
+    /** 检测敌人的半径（格） */
+    public static int combatMusicDetectRadius = 16;
+    /** 战斗结束后再放多少 tick 才停（100 tick = 5 秒） */
+    public static int combatMusicEndDelay = 100;
+    /** 出手后多少 tick 内仍算「在战斗」 */
+    public static int combatMusicTimeoutTicks = 100;
+    /** 战斗音乐音量倍率 */
+    public static double combatMusicVolume = 1.0D;
+    /** 战斗期间是否一首接一首地循环 */
+    public static boolean combatMusicLoop = true;
+
     private Config()
     {
     }
@@ -137,6 +150,13 @@ public final class Config
         biomeMusicEnabled = bool(values, "biomemusic.enabled", biomeMusicEnabled);
         biomeMusicRules = array(values, "biomemusic.rules", biomeMusicRules);
         biomeMusicMode = modeOf(values.get("biomemusic.mode"), biomeMusicMode);
+
+        combatMusicEnabled = bool(values, "combatmusic.enabled", combatMusicEnabled);
+        combatMusicDetectRadius = integer(values, "combatmusic.detectradius", combatMusicDetectRadius);
+        combatMusicEndDelay = integer(values, "combatmusic.enddelay", combatMusicEndDelay);
+        combatMusicTimeoutTicks = integer(values, "combatmusic.combattimeoutticks", combatMusicTimeoutTicks);
+        combatMusicVolume = decimal(values, "combatmusic.volume", combatMusicVolume);
+        combatMusicLoop = bool(values, "combatmusic.loop", combatMusicLoop);
 
         // 交给匹配逻辑
         BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
@@ -311,6 +331,32 @@ public final class Config
                     #   ONLY_CUSTOM  只播配置的音乐（默认）
                     #   MIX          配置的音乐与原版交替
                     mode = "ONLY_CUSTOM"
+
+                # 战斗音乐
+                # 需要先把音乐放进 config/musiclooper/combat
+                # 这个文件夹里的曲子平时完全不播放，只在检测到战斗时响起
+                [combatMusic]
+                    # 总开关（文件夹为空时开启也不会有任何影响）
+                    enabled = true
+
+                    # 检测敌对生物的半径（格）。这个范围内的敌对生物
+                    # 如果把你设为目标，就算进入战斗。
+                    detectRadius = 16
+
+                    # 战斗结束后再播放多少 tick 才停止（20 tick = 1 秒）
+                    # 避免打完最后一下音乐立刻断掉。
+                    endDelay = 100
+
+                    # 出手攻击之后，多少 tick 内仍然算「在战斗」
+                    combatTimeoutTicks = 100
+
+                    # 战斗音乐的音量倍率（0.0 ~ 1.0）
+                    # 实际音量 = 该倍率 × 游戏内“音乐”音量滑块
+                    volume = 1.0
+
+                    # 战斗期间是否一首接一首地循环播放
+                    # 关闭后一场战斗只放一首
+                    loop = true
                 """;
     }
 }
