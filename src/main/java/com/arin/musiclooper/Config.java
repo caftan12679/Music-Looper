@@ -30,6 +30,8 @@ public final class Config
     private static final ForgeConfigSpec.IntValue COMBAT_MUSIC_TIMEOUT_TICKS;
     private static final ForgeConfigSpec.DoubleValue COMBAT_MUSIC_VOLUME;
     private static final ForgeConfigSpec.BooleanValue COMBAT_MUSIC_LOOP;
+    private static final ForgeConfigSpec.IntValue FADE_IN_MS;
+    private static final ForgeConfigSpec.IntValue FADE_OUT_MS;
 
     /** 原版音乐是否连续播放（一首结束立刻接下一首，不再有几分钟的空档） */
     public static boolean loopVanillaMusic = true;
@@ -60,6 +62,11 @@ public final class Config
     public static double combatMusicVolume = 1.0D;
     /** 战斗期间是否一首接一首地循环 */
     public static boolean combatMusicLoop = true;
+
+    /** 曲目起播淡入时长（毫秒），0 = 不淡入 */
+    public static int fadeInMs = 1500;
+    /** 曲目停止 / 切换前淡出时长（毫秒），0 = 不淡出 */
+    public static int fadeOutMs = 1200;
 
     static
     {
@@ -151,6 +158,23 @@ public final class Config
                 .define("loop", true);
         builder.pop();
 
+        builder.comment("淡入淡出",
+                        "控制第三方音乐的起播与停止，避免换曲时出现突兀的断点",
+                        "不影响原版音乐（原版由游戏自己管理）").push("fade");
+        FADE_IN_MS = builder
+                .comment("曲目起播时的淡入时长（毫秒）。",
+                        "0 表示不淡入，直接以正常音量开始。",
+                        "默认：1500")
+                .defineInRange("fadeInMs", 1500, 0, 10000);
+        FADE_OUT_MS = builder
+                .comment("曲目停止或切换前的淡出时长（毫秒）。",
+                        "常规音乐与战斗音乐互相切换时会先淡出再切，听起来更自然。",
+                        "0 表示不淡出，直接切断。",
+                        "默认：1200")
+                .defineInRange("fadeOutMs", 1200, 0, 10000);
+        builder.pop();
+
+
         SPEC = builder.build();
     }
 
@@ -180,6 +204,8 @@ public final class Config
         combatMusicTimeoutTicks = COMBAT_MUSIC_TIMEOUT_TICKS.get();
         combatMusicVolume = COMBAT_MUSIC_VOLUME.get();
         combatMusicLoop = COMBAT_MUSIC_LOOP.get();
+        fadeInMs = FADE_IN_MS.get();
+        fadeOutMs = FADE_OUT_MS.get();
 
         MusicLooper.LOGGER.debug("Music Looper 配置已加载：loopVanillaMusic={}, playCustomMusic={}, disableWhenEnough={} (>= {}), volume={}",
                 loopVanillaMusic, playCustomMusic, disableVanillaMusicWhenEnoughCustom, customMusicThreshold, customMusicVolume);
