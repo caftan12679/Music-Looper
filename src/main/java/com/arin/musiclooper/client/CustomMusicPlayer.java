@@ -45,7 +45,14 @@ public final class CustomMusicPlayer
     private volatile boolean endOfStream;
     private volatile String workerError;
 
+    /** 用户设定的目标增益（音量滑块 × 倍率） */
     private float gain = 1.0F;
+    /** 当前真正应用给 OpenAL 的增益，淡入淡出期间会与 gain 不同 */
+    private float appliedGain = 1.0F;
+    /** 每 tick 的增益变化量；0 表示不淡变 */
+    private float fadeStep = 0.0F;
+    /** 淡出结束后要执行的动作（切换曲目等） */
+    private Runnable pendingAction;
     private boolean trackPrepared;
     private boolean reportedProblem;
     private boolean loggedStart;
@@ -69,7 +76,94 @@ public final class CustomMusicPlayer
     public void setGain(float value)
     {
         this.gain = Math.max(0.0F, Math.min(1.0F, value));
-        this.sink.setGain(this.gain);
+        // 淡出过程中不要打断；其余情况（比如拖动音量滑块）立即生效
+        if (this.pendingAction == null)
+        {
+            this.appliedGain = this.gain;
+            this.sink.setGain(this.appliedGain);
+        }
+    }
+
+    /**
+     * 先淡出当前曲目，再执行 {@code action}。
+     *
+     * <p>用在“常规音乐 ↔ 战斗音乐”这种需要换曲的场合：直接 stop 再 play 会听到
+     * 明显的断点，淡出之后再切就自然得多。</p>
+     *
+     * <p>当前没有在放东西时不再等待，直接执行 {@code action}。</p>
+     */
+    public void fadeOutThen(Runnable action)
+    {
+        if (!isBusy())
+        {
+            action.run();
+            return;
+        }
+
+        int ms = com.arin.musiclooper.Config.fadeOutMs;
+        if (ms <= 0)
+        {
+            // 没开淡出：立刻切
+            this.appliedGain = 0.0F;
+            this.sink.setGain(0.0F);
+            action.run();
+            return;
+        }
+
+        this.pendingAction = action;
+        this.fadeStep = fadeStepFor(ms);
+    }
+
+    /** 是否正在淡入或淡出 */
+    public boolean isFading()
+    {
+        return this.pendingAction != null
+                || Math.abs(this.appliedGain - this.gain) > 0.001F;
+    }
+
+    /** 把毫秒换算成每 tick 的增益步长（20 tick = 1 秒） */
+    private static float fadeStepFor(int ms)
+    {
+        if (ms <= 0)
+        {
+            return 0.0F;
+        }
+        int ticks = Math.max(1, ms / 50);
+        return 1.0F / ticks;
+    }
+
+    /** 每 tick 推进一次淡入淡出；到终点时执行挂起的动作 */
+    private void updateFade()
+    {
+        float target = this.pendingAction != null ? 0.0F : this.gain;
+
+        if (Math.abs(this.appliedGain - target) <= 0.001F)
+        {
+            if (this.appliedGain != target)
+            {
+                this.appliedGain = target;
+                this.sink.setGain(this.appliedGain);
+            }
+            if (this.pendingAction != null)
+            {
+                Runnable action = this.pendingAction;
+                this.pendingAction = null;
+                this.fadeStep = 0.0F;
+                action.run();
+            }
+            return;
+        }
+
+        float step = this.fadeStep > 0.0F ? this.fadeStep : 0.05F;
+        if (target > this.appliedGain)
+        {
+            this.appliedGain = Math.min(target, this.appliedGain + step);
+        }
+        else
+        {
+            this.appliedGain = Math.max(target, this.appliedGain - step);
+        }
+        this.sink.setGain(this.appliedGain);
     }
 
     /** 切到指定文件；上一首会立刻停下 */
@@ -85,6 +179,13 @@ public final class CustomMusicPlayer
         this.loggedStart = false;
         this.current = file;
         this.requested = file;
+
+        // 新曲目从 0 淡入
+        int fadeIn = com.arin.musiclooper.Config.fadeInMs;
+        this.pendingAction = null;
+        this.fadeStep = fadeStepFor(fadeIn);
+        this.appliedGain = fadeIn > 0 ? 0.0F : this.gain;
+        this.sink.setGain(this.appliedGain);
 
         Thread previous = this.worker;
         if (previous != null)
@@ -104,6 +205,9 @@ public final class CustomMusicPlayer
         stopPlayback();
         this.current = null;
         this.requested = null;
+        this.pendingAction = null;
+        this.fadeStep = 0.0F;
+        this.appliedGain = 0.0F;
     }
 
     /** 游戏退出时调用 */
@@ -158,7 +262,8 @@ public final class CustomMusicPlayer
             this.trackPrepared = true;
         }
 
-        this.sink.setGain(this.gain);
+        // 推进淡入淡出；淡出终点可能要执行切换动作，放在推送音频之前
+        updateFade();
 
         int free = this.sink.reclaim();
         while (free-- > 0)

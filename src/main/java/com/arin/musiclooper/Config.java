@@ -56,6 +56,11 @@ public final class Config
     /** 战斗期间是否一首接一首地循环 */
     public static boolean combatMusicLoop = true;
 
+    /** 曲目起播淡入时长（毫秒），0 = 不淡入 */
+    public static int fadeInMs = 1500;
+    /** 曲目停止 / 切换前淡出时长（毫秒），0 = 不淡出 */
+    public static int fadeOutMs = 1200;
+
     private Config()
     {
     }
@@ -157,6 +162,8 @@ public final class Config
         combatMusicTimeoutTicks = integer(values, "combatmusic.combattimeoutticks", combatMusicTimeoutTicks);
         combatMusicVolume = decimal(values, "combatmusic.volume", combatMusicVolume);
         combatMusicLoop = bool(values, "combatmusic.loop", combatMusicLoop);
+        fadeInMs = integer(values, "fade.fadeinms", fadeInMs);
+        fadeOutMs = integer(values, "fade.fadeoutms", fadeOutMs);
 
         // 交给匹配逻辑
         BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
@@ -357,6 +364,19 @@ public final class Config
                     # 战斗期间是否一首接一首地循环播放
                     # 关闭后一场战斗只放一首
                     loop = true
+
+                # 淡入淡出
+                # 控制第三方音乐的起播与停止，避免换曲时出现突兀的断点
+                # 不影响原版音乐（原版由游戏自己管理）
+                [fade]
+                    # 曲目起播时的淡入时长（毫秒）
+                    # 0 表示不淡入，直接以正常音量开始
+                    fadeInMs = 1500
+
+                    # 曲目停止或切换前的淡出时长（毫秒）
+                    # 常规音乐与战斗音乐互相切换时会先淡出再切
+                    # 0 表示不淡出，直接切断
+                    fadeOutMs = 1200
                 """;
     }
 }

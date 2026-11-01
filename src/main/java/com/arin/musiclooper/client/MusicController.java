@@ -139,9 +139,19 @@ public final class MusicController
 
             if (!activeIsCombat)
             {
-                // 刚进入战斗：停掉正在播的一切，换成战斗曲
-                stopCurrent(minecraft);
-                startCombat(combatTracks);
+                // 刚进入战斗：先淡出正在播的音乐，再换战斗曲
+                activeIsCombat = true;
+                if (PLAYER.isBusy())
+                {
+                    // 停掉原版（它有自己的短淡出），自定义曲交给 fadeOutThen 平滑收尾
+                    stopVanillaOnly(minecraft);
+                    PLAYER.fadeOutThen(() -> startCombat(combatTracks));
+                }
+                else
+                {
+                    stopCurrent(minecraft);
+                    startCombat(combatTracks);
+                }
             }
             else if (!PLAYER.isBusy())
             {
@@ -158,12 +168,15 @@ public final class MusicController
             return true;
         }
 
-        // 战斗结束：停掉战斗曲，并把 idleTicks 清空让常规音乐尽快接上
+        // 战斗结束：淡出战斗曲，淡完再把播放权交还给常规逻辑
         if (activeIsCombat)
         {
-            PLAYER.stop();
             activeIsCombat = false;
-            idleTicks = 0;
+            PLAYER.fadeOutThen(() ->
+            {
+                PLAYER.stop();
+                idleTicks = 0;
+            });
         }
         return false;
     }
@@ -309,6 +322,23 @@ public final class MusicController
         return null;
     }
 
+    /** 只停原版曲目，不动第三方音乐（给淡出切换用） */
+    private static void stopVanillaOnly(Minecraft minecraft)
+    {
+        if (activeVanilla != null && minecraft != null)
+        {
+            try
+            {
+                minecraft.getSoundManager().stop(activeVanilla);
+            }
+            catch (Throwable ignored)
+            {
+                // 音乐引擎可能还没就绪，忽略
+            }
+        }
+        activeVanilla = null;
+    }
+
     /** 停掉当前正在播的音乐（原版 + 第三方） */
     private static void stopCurrent(Minecraft minecraft)
     {
@@ -393,7 +423,7 @@ public final class MusicController
 
     private static boolean ownsRotation()
     {
-        if (activeIsCustom || activeIsCombat || PLAYER.isBusy())
+        if (activeIsCustom || activeIsCombat || PLAYER.isFading() || PLAYER.isBusy())
         {
             return true;
         }
