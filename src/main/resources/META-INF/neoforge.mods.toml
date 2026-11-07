@@ -1,0 +1,49 @@
+# Music Looper —— NeoForge 26.3 版
+# 格式说明：https://github.com/toml-lang/toml
+# 注意：本文件里的占位符在 Gradle 构建时由 ProcessResources 展开；
+#       这里直接写成实际值，所以命令行手工构建（build.sh）也能用同一份文件。
+
+modLoader="javafml"
+loaderVersion="[3,)"
+
+# 许可证，GPL-3.0 与其它几个平台保持一致
+license="GPL-3.0"
+
+# 出问题时让人找到你的地方（可选）
+#issueTrackerURL=""
+
+[[mods]]
+    modId="musiclooper"
+    version="1.0.0"
+    displayName="Music Looper"
+    authors="hemjj, 蓝色大肥鱼"
+    # 显示在模组列表里的简介（多行用三个单引号）
+    description='''
+让 Minecraft 的音乐连续不断地播放，不再出现几分钟的空档。
+
+· 原版音乐一首接一首地循环
+· 可以把 config/musiclooper/music 里的第三方音乐混进播放列表（支持 MP3 / OGG / WAV / FLAC）
+· 可以按生物群系指定音乐
+· 战斗时会自动切到 config/musiclooper/combat 里的战斗曲，战斗结束再切回来
+· 曲目切换带淡入淡出
+
+全部功能都在 config/musiclooper-client.toml 里配置，游戏内用 /musiclooper 查看状态。
+'''
+
+# 依赖声明 -------------------------------------------------------------
+# side="CLIENT" 表示这是纯客户端模组，装在服务器上也不会被要求匹配。
+
+[[dependencies.musiclooper]]
+    modId="neoforge"
+    type="required"
+    versionRange="[26.3,)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.musiclooper]]
+    modId="minecraft"
+    type="required"
+    # 26.3 及以上、27 以下 —— 以后的 26.4 等也能加载
+    versionRange="[26.3,27)"
+    ordering="NONE"
+    side="CLIENT"

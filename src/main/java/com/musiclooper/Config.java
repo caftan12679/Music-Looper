@@ -1,0 +1,389 @@
+package com.musiclooper;
+
+import com.musiclooper.client.BiomeMusicRules;
+import net.neoforged.fml.loading.FMLPaths;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * config/musiclooper-client.toml 里的配置项。
+ *
+ * <p>NeoForge 自带 ModConfigSpec，但为了让 Forge / Fabric 几个版本的配置文件<b>完全通用</b>，
+ * 这里继续沿用自己写的一份极简 TOML 解析器：
+ * 支持 {@code [section]} 分段和 {@code key = value} 两种写法，只认 boolean / 整数 / 小数。
+ * 文件格式与 Forge 版保持一致，两个版本的用户看到的是同一个文件。</p>
+ */
+public final class Config
+{
+    /**
+     * config/musiclooper-client.toml
+     *
+     * <p>{@link FMLPaths#CONFIGDIR} 就是游戏目录下的 config。<b>注意它是懒初始化</b>的：
+     * 必须在模组构造器里（而不是类静态初始化阶段被别处过早触发）读取才拿得到正确路径，
+     * 本模组的所有访问都发生在构造器及之后，所以安全。</p>
+     */
+    public static final Path FILE = FMLPaths.CONFIGDIR.get().resolve("musiclooper-client.toml");
+
+    /** 原版音乐是否连续播放（一首结束立刻接下一首，不再有几分钟的空档） */
+    public static boolean loopVanillaMusic = true;
+    /** 是否播放 config/musiclooper/music 里的第三方音乐 */
+    public static boolean playCustomMusic = true;
+    /** 第三方音乐的音量倍率，最终音量 = 该值 × 游戏内“音乐”音量滑块 */
+    public static double customMusicVolume = 1.0D;
+    /** 第三方音乐足够多时，是否完全禁用原版音乐 */
+    public static boolean disableVanillaMusicWhenEnoughCustom = false;
+    /** “足够多”的数量门槛 */
+    public static int customMusicThreshold = 5;
+
+    /** 是否启用「按生物群系播放指定音乐」 */
+    public static boolean biomeMusicEnabled = false;
+    /** 群系规则原文，格式：群系ID=文件名1,文件名2；支持 #标签 与 * 兜底 */
+    public static List<String> biomeMusicRules = List.of();
+    /** 命中群系后原版音乐怎么处理 */
+    public static BiomeMusicRules.Mode biomeMusicMode = BiomeMusicRules.Mode.ONLY_CUSTOM;
+
+    /** 是否启用战斗音乐（config/musiclooper/combat） */
+    public static boolean combatMusicEnabled = true;
+    /** 检测敌人的半径（格） */
+    public static int combatMusicDetectRadius = 16;
+    /** 战斗结束后再放多少 tick 才停（100 tick = 5 秒） */
+    public static int combatMusicEndDelay = 100;
+    /** 出手后多少 tick 内仍算「在战斗」 */
+    public static int combatMusicTimeoutTicks = 100;
+    /** 战斗音乐音量倍率 */
+    public static double combatMusicVolume = 1.0D;
+    /** 战斗期间是否一首接一首地循环 */
+    public static boolean combatMusicLoop = true;
+
+    /** 曲目起播淡入时长（毫秒），0 = 不淡入 */
+    public static int fadeInMs = 1500;
+    /** 曲目停止 / 切换前淡出时长（毫秒），0 = 不淡出 */
+    public static int fadeOutMs = 1200;
+
+    private Config()
+    {
+    }
+
+    /** 读取配置；文件不存在就先写一份带注释的默认值 */
+    public static void load()
+    {
+        try
+        {
+            if (!Files.exists(FILE))
+            {
+                Files.createDirectories(FILE.getParent());
+                Files.writeString(FILE, defaultText(), StandardCharsets.UTF_8);
+                MusicLooper.LOGGER.info("已生成默认配置：{}", FILE);
+            }
+        }
+        catch (IOException exception)
+        {
+            MusicLooper.LOGGER.warn("无法写入默认配置 {}：{}", FILE, exception.toString());
+            return;
+        }
+
+        Map<String, String> values = new HashMap<>();
+        String section = "";
+        // 跨行数组：遇到 key = [ 之后，把后续行攒起来直到 ]
+        String pendingKey = null;
+        StringBuilder pendingValue = new StringBuilder();
+
+        try
+        {
+            List<String> lines = Files.readAllLines(FILE, StandardCharsets.UTF_8);
+            for (String raw : lines)
+            {
+                String line = stripComment(raw).trim();
+                if (line.isEmpty())
+                {
+                    continue;
+                }
+
+                // 正在收集数组内容
+                if (pendingKey != null)
+                {
+                    pendingValue.append(line);
+                    if (line.contains("]"))
+                    {
+                        values.put(pendingKey, pendingValue.toString());
+                        pendingKey = null;
+                        pendingValue.setLength(0);
+                    }
+                    continue;
+                }
+
+                if (line.startsWith("[") && line.endsWith("]"))
+                {
+                    section = line.substring(1, line.length() - 1).trim().toLowerCase(Locale.ROOT);
+                    continue;
+                }
+
+                int equals = line.indexOf('=');
+                if (equals < 0)
+                {
+                    continue;
+                }
+
+                String key = section + "." + line.substring(0, equals).trim().toLowerCase(Locale.ROOT);
+                String value = line.substring(equals + 1).trim();
+
+                // 数组开头但没有在同一行闭合：先攒着
+                if (value.startsWith("[") && !value.contains("]"))
+                {
+                    pendingKey = key;
+                    pendingValue.setLength(0);
+                    pendingValue.append(value);
+                    continue;
+                }
+
+                values.put(key, value);
+            }
+        }
+        catch (IOException exception)
+        {
+            MusicLooper.LOGGER.warn("读取配置失败，将使用默认值：{}", exception.toString());
+            return;
+        }
+
+        loopVanillaMusic = bool(values, "vanilla.loopVanillaMusic", loopVanillaMusic);
+        disableVanillaMusicWhenEnoughCustom = bool(values, "vanilla.disableVanillaMusicWhenEnoughCustom", disableVanillaMusicWhenEnoughCustom);
+        customMusicThreshold = integer(values, "vanilla.customMusicThreshold", customMusicThreshold);
+        playCustomMusic = bool(values, "custom.playCustomMusic", playCustomMusic);
+        customMusicVolume = decimal(values, "custom.customMusicVolume", customMusicVolume);
+
+        biomeMusicEnabled = bool(values, "biomemusic.enabled", biomeMusicEnabled);
+        biomeMusicRules = array(values, "biomemusic.rules", biomeMusicRules);
+        biomeMusicMode = modeOf(values.get("biomemusic.mode"), biomeMusicMode);
+
+        combatMusicEnabled = bool(values, "combatmusic.enabled", combatMusicEnabled);
+        combatMusicDetectRadius = integer(values, "combatmusic.detectradius", combatMusicDetectRadius);
+        combatMusicEndDelay = integer(values, "combatmusic.enddelay", combatMusicEndDelay);
+        combatMusicTimeoutTicks = integer(values, "combatmusic.combattimeoutticks", combatMusicTimeoutTicks);
+        combatMusicVolume = decimal(values, "combatmusic.volume", combatMusicVolume);
+        combatMusicLoop = bool(values, "combatmusic.loop", combatMusicLoop);
+        fadeInMs = integer(values, "fade.fadeinms", fadeInMs);
+        fadeOutMs = integer(values, "fade.fadeoutms", fadeOutMs);
+
+        // 交给匹配逻辑
+        BiomeMusicRules.apply(biomeMusicEnabled, biomeMusicRules, biomeMusicMode);
+
+        MusicLooper.LOGGER.info("配置已加载：loopVanillaMusic={}, playCustomMusic={}, disableWhenEnough={} (>= {}), volume={}",
+                loopVanillaMusic, playCustomMusic, disableVanillaMusicWhenEnoughCustom, customMusicThreshold, customMusicVolume);
+    }
+
+    private static BiomeMusicRules.Mode modeOf(String raw, BiomeMusicRules.Mode fallback)
+    {
+        if (raw == null)
+        {
+            return fallback;
+        }
+        String value = raw.trim().replace("\"", "").replace("'", "").toUpperCase(Locale.ROOT);
+        return switch (value)
+        {
+            case "ONLY_CUSTOM" -> BiomeMusicRules.Mode.ONLY_CUSTOM;
+            case "MIX" -> BiomeMusicRules.Mode.MIX;
+            default ->
+            {
+                MusicLooper.LOGGER.warn("未知的 biomeMusic.mode：{}，使用默认值 {}", raw, fallback);
+                yield fallback;
+            }
+        };
+    }
+
+    /** 去掉行尾注释；TOML 里 # 之后的都是注释 */
+    private static String stripComment(String line)
+    {
+        int hash = line.indexOf('#');
+        return hash < 0 ? line : line.substring(0, hash);
+    }
+
+    private static boolean bool(Map<String, String> values, String key, boolean fallback)
+    {
+        String raw = values.get(key);
+        if (raw == null)
+        {
+            return fallback;
+        }
+        return "true".equalsIgnoreCase(raw) || "false".equalsIgnoreCase(raw)
+                ? Boolean.parseBoolean(raw)
+                : fallback;
+    }
+
+    private static int integer(Map<String, String> values, String key, int fallback)
+    {
+        try
+        {
+            String raw = values.get(key);
+            return raw == null ? fallback : Integer.parseInt(raw.trim());
+        }
+        catch (NumberFormatException exception)
+        {
+            MusicLooper.LOGGER.warn("配置项 {} 不是合法整数，使用默认值 {}", key, fallback);
+            return fallback;
+        }
+    }
+
+    private static double decimal(Map<String, String> values, String key, double fallback)
+    {
+        try
+        {
+            String raw = values.get(key);
+            return raw == null ? fallback : Double.parseDouble(raw.trim());
+        }
+        catch (NumberFormatException exception)
+        {
+            MusicLooper.LOGGER.warn("配置项 {} 不是合法小数，使用默认值 {}", key, fallback);
+            return fallback;
+        }
+    }
+
+    /**
+     * 解析字符串数组，支持两种写法：
+     * <pre>
+     *   key = ["a", "b"]        单行
+     *   key = [                 跨行
+     *       "a",
+     *       "b",
+     *   ]
+     * </pre>
+     * 元素两端的引号会被去掉。
+     */
+    private static List<String> array(Map<String, String> values, String key, List<String> fallback)
+    {
+        String raw = values.get(key);
+        if (raw == null)
+        {
+            return fallback;
+        }
+
+        String body = raw.trim();
+        int open = body.indexOf('[');
+        int close = body.lastIndexOf(']');
+        if (open < 0 || close <= open)
+        {
+            MusicLooper.LOGGER.warn("配置项 {} 不是合法的数组，使用默认值", key);
+            return fallback;
+        }
+        body = body.substring(open + 1, close);
+
+        List<String> result = new ArrayList<>();
+        for (String part : body.split(","))
+        {
+            String item = part.trim();
+            // 去掉两端引号
+            if (item.length() >= 2
+                    && ((item.startsWith("\"") && item.endsWith("\""))
+                        || (item.startsWith("'") && item.endsWith("'"))))
+            {
+                item = item.substring(1, item.length() - 1);
+            }
+            if (!item.isEmpty())
+            {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    private static String defaultText()
+    {
+        return """
+                # Music Looper 配置文件
+                #
+                # 修改后需要重启游戏才会生效。
+
+                [vanilla]
+                    # 是否让原版音乐连续循环播放。
+                    # 开启后，一首原版音乐播完会立刻接着播放下一首，不会再出现几分钟的静默空档。
+                    # 默认：true
+                    loopVanillaMusic = true
+
+                    # 当第三方音乐数量达到下面的门槛时，是否完全禁用原版音乐。
+                    # 开启并且第三方音乐数量达标时，只会播放 config/musiclooper/music 里的音乐。
+                    # 默认：false
+                    disableVanillaMusicWhenEnoughCustom = false
+
+                    # 上面那个选项的触发门槛：第三方音乐至少要有多少首。
+                    # 默认：5（即至少 5 首第三方音乐）
+                    customMusicThreshold = 5
+
+                [custom]
+                    # 是否播放 config/musiclooper/music 文件夹里的第三方音乐。
+                    # 关闭后该文件夹会被忽略，只播放（或循环）原版音乐。
+                    # 默认：true
+                    playCustomMusic = true
+
+                    # 第三方音乐的音量倍率（0.0 ~ 1.0）。
+                    # 实际音量 = 该倍率 × 游戏内“音乐”音量滑块。
+                    # 默认：1.0
+                    customMusicVolume = 1.0
+
+                # 按生物群系播放指定音乐
+                # 需要先把音乐放进 config/musiclooper/music
+                [biomeMusic]
+                    # 总开关
+                    enabled = false
+
+                    # 规则格式：群系ID=文件名1,文件名2
+                    #   具体群系：minecraft:plains（省略命名空间时默认 minecraft）
+                    #   群系标签："#minecraft:is_forest"（一次覆盖所有森林类群系）
+                    #   兜底规则：*（前面都没命中时使用）
+                    rules = [
+                        "minecraft:plains=calm.mp3,morning.mp3",
+                        "#minecraft:is_forest=forest_theme.mp3",
+                    ]
+
+                    # 命中的群系里，原版音乐怎么处理：
+                    #   ONLY_CUSTOM  只播配置的音乐（默认）
+                    #   MIX          配置的音乐与原版交替
+                    mode = "ONLY_CUSTOM"
+
+                # 战斗音乐
+                # 需要先把音乐放进 config/musiclooper/combat
+                # 这个文件夹里的曲子平时完全不播放，只在检测到战斗时响起
+                [combatMusic]
+                    # 总开关（文件夹为空时开启也不会有任何影响）
+                    enabled = true
+
+                    # 检测敌对生物的半径（格）。这个范围内的敌对生物
+                    # 如果把你设为目标，就算进入战斗。
+                    detectRadius = 16
+
+                    # 战斗结束后再播放多少 tick 才停止（20 tick = 1 秒）
+                    # 避免打完最后一下音乐立刻断掉。
+                    endDelay = 100
+
+                    # 出手攻击之后，多少 tick 内仍然算「在战斗」
+                    combatTimeoutTicks = 100
+
+                    # 战斗音乐的音量倍率（0.0 ~ 1.0）
+                    # 实际音量 = 该倍率 × 游戏内“音乐”音量滑块
+                    volume = 1.0
+
+                    # 战斗期间是否一首接一首地循环播放
+                    # 关闭后一场战斗只放一首
+                    loop = true
+
+                # 淡入淡出
+                # 控制第三方音乐的起播与停止，避免换曲时出现突兀的断点
+                # 不影响原版音乐（原版由游戏自己管理）
+                [fade]
+                    # 曲目起播时的淡入时长（毫秒）
+                    # 0 表示不淡入，直接以正常音量开始
+                    fadeInMs = 1500
+
+                    # 曲目停止或切换前的淡出时长（毫秒）
+                    # 常规音乐与战斗音乐互相切换时会先淡出再切
+                    # 0 表示不淡出，直接切断
+                    fadeOutMs = 1200
+                """;
+    }
+}
