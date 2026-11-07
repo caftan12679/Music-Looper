@@ -1,0 +1,12 @@
+{
+	"required": false,
+	"minVersion": "0.8",
+	"package": "com.musiclooper.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"SoundManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

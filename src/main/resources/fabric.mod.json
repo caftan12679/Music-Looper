@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"id": "music-looper",
+	"version": "${version}",
+	"name": "Music Looper",
+	"description": "让原版音乐连续循环播放，并把 config/musiclooper/music 里的第三方音乐加入随机播放列表。\n当第三方音乐数量达到设定门槛时，可以在配置里完全禁用原版音乐。",
+	"authors": [
+		"hemjj",
+		"蓝色大肥鱼"
+	],
+	"contact": {
+		"homepage": "https://github.com/caftan12679/Music-Looper",
+		"sources": "https://github.com/caftan12679/Music-Looper"
+	},
+	"license": "GPL-3.0",
+	"icon": "assets/music-looper/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.musiclooper.MusicLooper"
+		]
+	},
+	"mixins": [
+		{
+			"config": "music-looper.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": ">=26.3 <27",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
