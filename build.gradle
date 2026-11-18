@@ -161,6 +161,10 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
     // 内置的 mp3 解码器（ServiceLoader 会自动发现 META-INF/services 中的 SPI 声明）
+    // embed 只负责打包进 jar，编译期符号还得靠 compileOnly 才可见
+    compileOnly 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    compileOnly 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+    compileOnly 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
     embed 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
     embed 'com.googlecode.soundlibs:jlayer:1.0.1.4'
     embed 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
