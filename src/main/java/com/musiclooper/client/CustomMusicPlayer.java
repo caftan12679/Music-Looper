@@ -76,8 +76,14 @@ public final class CustomMusicPlayer
     public void setGain(float value)
     {
         this.gain = Math.max(0.0F, Math.min(1.0F, value));
-        // 淡出过程中不要打断；其余情况（比如拖动音量滑块）立即生效
-        if (this.pendingAction == null)
+
+        // 淡出中（pendingAction 非空）或淡入中（音量还没追上目标）都不要打断，
+        // 让 updateFade 自己把 appliedGain 平滑推过去。
+        // 否则 MusicController 每 tick 都会调一次本方法，把淡入一步到位地抹掉。
+        boolean fadingOut = this.pendingAction != null;
+        boolean fadingIn = this.fadeStep > 0.0F && this.appliedGain < this.gain;
+
+        if (!fadingOut && !fadingIn)
         {
             this.appliedGain = this.gain;
             this.sink.setGain(this.appliedGain);
@@ -150,6 +156,11 @@ public final class CustomMusicPlayer
                 this.pendingAction = null;
                 this.fadeStep = 0.0F;
                 action.run();
+            }
+            else
+            {
+                // 淡入走完，清掉步长；否则之后调音量也会走渐变了
+                this.fadeStep = 0.0F;
             }
             return;
         }
