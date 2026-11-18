@@ -12,7 +12,7 @@
 # 用法：
 #   bash build.sh
 # 产物：
-#   build/libs/music-looper-neoforge-26.1.2-1.0.0.jar
+#   build/libs/music-looper-neoforge-26.3-1.1.0.jar
 # =============================================================================
 set -euo pipefail
 
@@ -20,7 +20,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
 # ---------------------------------------------------------------- 版本号 ----
-MOD_VERSION="1.0.0"
+MOD_VERSION="1.1.0"
 MC_VERSION="26.3"
 NEO_VERSION="26.3.0.101"
 
