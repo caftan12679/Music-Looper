@@ -8,7 +8,7 @@ clientSideOnly=true
 
 [[mods]]
 modId="musiclooper"
-version="1.2.1"
+version="${mod_version}"
 displayName="Music Looper"
 authors="hemjj,蓝色大肥鱼"
 description='''
