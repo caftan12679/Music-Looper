@@ -12,7 +12,7 @@
 # 用法：
 #   bash build.sh
 # 产物：
-#   build/libs/music-looper-neoforge-26.3-1.1.0.jar
+#   build/libs/music-looper-neoforge-26.1.2-1.1.0.jar
 # =============================================================================
 set -euo pipefail
 
@@ -21,14 +21,14 @@ cd "$PROJECT_DIR"
 
 # ---------------------------------------------------------------- 版本号 ----
 MOD_VERSION="1.1.0"
-MC_VERSION="26.3"
-NEO_VERSION="26.3.0.101"
+MC_VERSION="26.1.2"
+NEO_VERSION="26.1.2.126"
 
 # ---------------------------------------------------------------- 路径 ------
 FCL_LIBS="/storage/emulated/0/FCL/.minecraft/libraries"   # 启动器下载的依赖库
-MC_CLIENT_JAR="$HOME/mc263/client-26.3.jar"   # 26.3 客户端（未混淆）
+MC_CLIENT_JAR="/storage/emulated/0/我的文件/临时文件夹/client.jar"  # 26.1.2 客户端（未混淆）
 GRADLE_CACHE="$HOME/.gradle/caches/modules-2/files-2.1"   # 之前 Fabric 版构建留下的依赖
-WORK="$HOME/.ml-neoforge-263-build"                           # 外部工作目录，不污染工程
+WORK="$HOME/.ml-neoforge-build"                           # 外部工作目录，不污染工程
 
 # ---------------------------------------------------------------- 工具链 ----
 # 必须用 JDK 25 编译：MC 26.x 的 class 是 Java 25（major 69）。
@@ -55,7 +55,7 @@ NEO_JAR="$WORK/neoforge-$NEO_VERSION-universal.jar"
 if [ ! -f "$NEO_JAR" ]; then
     mkdir -p "$WORK"
     # 优先复用本机已有的快照（maven.neoforged.net 在手机网络上很不稳定）
-    LOCAL_SNAPSHOT="$HOME/mc263/neoforge-26.3.jar"
+    LOCAL_SNAPSHOT="$HOME/neo2612/neoforge-$NEO_VERSION.jar"
     if [ -f "$LOCAL_SNAPSHOT" ]; then
         echo "    复用本地快照：$LOCAL_SNAPSHOT"
         cp "$LOCAL_SNAPSHOT" "$NEO_JAR"
