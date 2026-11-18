@@ -64,9 +64,9 @@ public final class Config
     public static boolean combatMusicLoop = true;
 
     /** 曲目起播淡入时长（毫秒），0 = 不淡入 */
-    public static int fadeInMs = 1500;
+    public static int fadeInMs = 2500;
     /** 曲目停止 / 切换前淡出时长（毫秒），0 = 不淡出 */
-    public static int fadeOutMs = 1200;
+    public static int fadeOutMs = 2500;
 
     private Config()
     {
@@ -378,12 +378,12 @@ public final class Config
                 [fade]
                     # 曲目起播时的淡入时长（毫秒）
                     # 0 表示不淡入，直接以正常音量开始
-                    fadeInMs = 1500
+                    fadeInMs = 2500
 
                     # 曲目停止或切换前的淡出时长（毫秒）
                     # 常规音乐与战斗音乐互相切换时会先淡出再切
                     # 0 表示不淡出，直接切断
-                    fadeOutMs = 1200
+                    fadeOutMs = 2500
                 """;
     }
 }
